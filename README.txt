@@ -7,6 +7,7 @@ Files:
 Yutils.lua (the library)
 README.txt (this file)
 tests/ (folder with example scripts of Yutils' usage)
+.gitignore (files to ignore by Git)
 -----------------------------------------
 Notes:
 - all shape functions work with integer shapes

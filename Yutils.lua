@@ -2,7 +2,7 @@
 	Copyright (c) 2014, Christoph "Youka" Spanknebel
 	All rights reserved.
 	
-	Version: 26th June 2014, 19:15 (GMT+1)
+	Version: 27th June 2014, 17:46 (GMT+1)
 	
 	Yutils
 		table
@@ -57,14 +57,11 @@
 -- Load FFI interface
 local ffi = require("ffi")
 -- Check OS
-if ffi.os ~= "Windows" then
-	error("just windows supported", 1)
-end
--- Set C definitions
-ffi.cdef([[
+if ffi.os == "Windows" then
+	-- Set C definitions
+	ffi.cdef([[
 typedef unsigned int UINT;
 typedef unsigned long DWORD;
-typedef unsigned short WORD;
 typedef const char* LPCSTR;
 typedef wchar_t* LPWSTR;
 typedef void* HANDLE;
@@ -116,37 +113,12 @@ typedef struct{
 	LONG y;
 }POINT, *LPPOINT;
 typedef BYTE* PBYTE;
-typedef HANDLE HBITMAP;
-typedef struct{
-	DWORD biSize;
-	LONG biWidth;
-	LONG biHeight;
-	WORD biPlanes;
-	WORD biBitCount;
-	DWORD biCompression;
-	DWORD biSizeImage;
-	LONG biXPelsPerMeter;
-	LONG biYPelsPerMeter;
-	DWORD biClrUsed;
-	DWORD biClrImportant;
-}BITMAPINFOHEADER;
-typedef struct{
-	BYTE rgbBlue;
-	BYTE rgbGreen;
-	BYTE rgbRed;
-	BYTE rgbReserved;
-} RGBQUAD;
-typedef struct{
-	BITMAPINFOHEADER bmiHeader;
-	RGBQUAD* bmiColors;
-}BITMAPINFO;
 
 int MultiByteToWideChar(UINT, DWORD, LPCSTR, int, LPWSTR, int);
 HDC CreateCompatibleDC(HDC);
 BOOL DeleteDC(HDC);
 int SetMapMode(HDC, int);
 int SetBkMode(HDC, int);
-int SetPolyFillMode(HDC, int);
 size_t wcslen(const wchar_t*);
 HFONT CreateFontW(int, int, int, int, int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, LPCWSTR);
 HGDIOBJ SelectObject(HDC, HGDIOBJ);
@@ -155,14 +127,14 @@ BOOL GetTextMetricsW(HDC, LPTEXTMETRICW);
 BOOL GetTextExtentPoint32W(HDC, LPCWSTR, int, LPSIZE);
 BOOL BeginPath(HDC);
 BOOL ExtTextOutW(HDC, int, int, UINT, LPCRECT, LPCWSTR, UINT, const INT*);
-BOOL PolyDraw(HDC, const POINT*, const BYTE*, int);
 BOOL EndPath(HDC);
 int GetPath(HDC, LPPOINT, PBYTE, int);
 BOOL AbortPath(HDC);
-BOOL FillPath(HDC);
-BOOL GdiFlush();
-HBITMAP CreateDIBSection(HDC, const BITMAPINFO*, UINT, void**, HANDLE, int);
-]])
+]]
+	)
+else
+	error("not supported operation system", 1)
+end
 
 -- Create library table
 local Yutils
@@ -899,88 +871,105 @@ Yutils = {
 			-- Scale values for later anti-aliasing
 			local upscale = 8
 			local downscale = 1 / upscale
-			-- Get shape size
+			-- Get shape bounding
 			local x1, y1, x2, y2 = Yutils.shape.bounding(shape)
 			if not y2 then
 				error("not enough shape points", 2)
-			elseif (x2-x1)%upscale ~= 0 or (y2-y1)%upscale ~= 0 then
-				error("shape size must be a multiple of " .. upscale, 2)
 			end
 			-- Bring shape near origin in positive room
 			local shift_x, shift_y = -(x1 - x1 % upscale), -(y1 - y1 % upscale)
 			shape = Yutils.shape.move(shape, shift_x, shift_y)
-			-- Convert shape to tables (with C types: 6 = PT_MOVETO, 2 = PT_LINETO, 4 = PT_BEZIERTO)
-			local types, points, points_n = {}, {}, 0
-			local cur_type, cur_x = 6
-			for token in shape:gmatch("([^%s]+)") do
-				if token == "m" then
-					cur_type = 6
-				elseif token == "l" then
-					cur_type = 2
-				elseif token == "b" then
-					cur_type = 4
-				else
-					token = tonumber(token)
-					if token then
-						if not cur_x then
-							cur_x = token
-						else
-							points_n = points_n + 1
-							types[points_n] = cur_type
-							points[points_n] = {cur_x, token}
-							cur_x = nil
+			-- Renderer (on binary image with aliasing)
+			local function render_shape(width, height, image, shape)
+				-- Convert curves to lines
+				shape = Yutils.shape.flatten(shape)
+				-- Collect lines (points + vectors)
+				local lines, lines_n, last_point, last_move = {}, 0
+				for typ, x, y in shape:gmatch("(%a?)%s*(%-?%d+)%s+(%-?%d+)") do
+					x, y = tonumber(x), tonumber(y)
+					-- Move
+					if typ == "m" then
+						-- Close figure with non-horizontal line in image
+						if last_move and last_move[2] ~= last_point[2] and not (last_point[2] < 0 and last_move[2] < 0) and not (last_point[2] > height and last_move[2] > height) then
+							lines_n = lines_n + 1
+							lines[lines_n] = {last_point[1], last_point[2], last_move[1] - last_point[1], last_move[2] - last_point[2]}
+						end
+						last_move = {x, y}
+					-- Non-horizontal line in image
+					elseif last_point and last_point[2] ~= y and not (last_point[2] < 0 and y < 0) and not (last_point[2] > height and y > height) then
+						lines_n = lines_n + 1
+						lines[lines_n] = {last_point[1], last_point[2], x - last_point[1], y - last_point[2]}
+					end
+					-- Remember last point
+					last_point = {x, y}
+				end
+				-- Close last figure with non-horizontal line in image
+				if last_move and last_move[2] ~= last_point[2] and not (last_point[2] < 0 and last_move[2] < 0) and not (last_point[2] > height and last_move[2] > height) then
+					lines_n = lines_n + 1
+					lines[lines_n] = {last_point[1], last_point[2], last_move[1] - last_point[1], last_move[2] - last_point[2]}
+				end
+				-- Calculates line x horizontal line intersection
+				local function line_x_hline(x, y, vx, vy, y2)
+					if vy ~= 0 then
+						local s = (y2 - y) / vy
+						if s >= 0 and s <= 1 then
+							return x + s * vx, y2
+						end
+					end
+				end
+				-- Trims number in range
+				local function num_trim(x, min, max)
+					return x < min and min or x > max and max or x
+				end
+				-- Scan image rows in shape
+				local _, y1, _, y2 = Yutils.shape.bounding(shape)
+				for y = math.max(y1, 0), math.min(y2, height)-1 do
+					-- Collect row intersections with lines
+					local row_stops, row_stops_n = {}, 0
+					for i=1, lines_n do
+						local line = lines[i]
+						local cx = line_x_hline(line[1], line[2], line[3], line[4], y + 0.5)
+						if cx then
+							row_stops_n = row_stops_n + 1
+							row_stops[row_stops_n] = {num_trim(Yutils.math.round(cx), 0, width), line[4] > 0 and 1 or -1}	-- image trimmed stop position & line vertical direction
+						end
+					end
+					-- Enough intersections / something to render?
+					if row_stops_n > 1 then
+						-- Sort row stops by horizontal position
+						table.sort(row_stops, function(a, b)
+							return a[1] < b[1]
+						end)
+						-- Render!
+						local status, row_index = 0, 1 + y * width
+						for i = 1, row_stops_n-1 do
+							status = status + row_stops[i][2]
+							if status ~= 0 then
+								for x=row_stops[i][1], row_stops[i+1][1]-1 do
+									image[row_index + x] = true
+								end
+							end
 						end
 					end
 				end
 			end
-			-- Convert shape tables to C data for context compatibility
-			local ctypes, cpoints = ffi.new("BYTE[?]", points_n), ffi.new("POINT[?]", points_n)
-			for i=1, points_n do
-				ctypes[i-1] = types[i]
-				cpoints[i-1].x = points[i][1]
-				cpoints[i-1].y = points[i][2]
+			-- Create image
+			local img_width, img_height, img_data = math.ceil((x2 + shift_x) * downscale) * upscale, math.ceil((y2 + shift_y) * downscale) * upscale, {}
+			for i=1, img_width*img_height do
+				img_data[i] = false
 			end
-			-- Create device context
-			local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), ffi.C.DeleteDC)
-			-- Set context coordinates mapping mode
-			ffi.C.SetMapMode(dc, 1)	-- 1 = MM_TEXT
-			-- Set context backgrounds to transparent
-			ffi.C.SetBkMode(dc, 1)	-- 1 = TRANSPARENT
-			-- Set context filling mode to winding pattern
-			ffi.C.SetPolyFillMode(dc, 2)	-- 2 = WINDING
-			-- Add bitmap to context
-			local bmp_width, bmp_height = math.ceil((x2 + shift_x) * downscale) * upscale, math.ceil((y2 + shift_y) * downscale) * upscale
-			local bmp_info = ffi.new("BITMAPINFO[1]")
-			bmp_info[0].bmiHeader.biSize = ffi.sizeof("BITMAPINFOHEADER")
-			bmp_info[0].bmiHeader.biWidth = bmp_width
-			bmp_info[0].bmiHeader.biHeight = -bmp_height
-			bmp_info[0].bmiHeader.biPlanes = 1
-			bmp_info[0].bmiHeader.biBitCount = 24
-			bmp_info[0].bmiHeader.biCompression = 0	-- BI_RGB
-			bmp_info[0].bmiHeader.biSizeImage = 0	-- ignored with BI_RGB
-			bmp_info[0].bmiHeader.biXPelsPerMeter = 0
-			bmp_info[0].bmiHeader.biYPelsPerMeter = 0
-			bmp_info[0].bmiHeader.biClrUsed = 0
-			bmp_info[0].bmiHeader.biClrImportant = 0
-			bmp_info[0].bmiColors = nil
-			local data = ffi.new("BYTE*[1]")
-			local bmp = ffi.gc(ffi.C.CreateDIBSection(dc, bmp_info, 0, ffi.cast("void**", data), nil, 0), ffi.C.DeleteObject)
-			ffi.C.SelectObject(dc, bmp)
-			-- Add shape to context path
-			ffi.C.BeginPath(dc)
-			ffi.C.PolyDraw(dc, cpoints, ctypes, points_n)
-			ffi.C.EndPath(dc)
-			-- Fill context path
-			ffi.C.FillPath(dc)
-			ffi.C.GdiFlush()
+			-- Render shape on image
+			render_shape(img_width, img_height, img_data, shape)
 			-- Extract pixels from context
 			local pixels, pixels_n, opacity = {}, 0
-			for y=0, bmp_height-upscale, upscale do
-				for x=0, bmp_width-upscale, upscale do
+			for y=0, img_height-upscale, upscale do
+				for x=0, img_width-upscale, upscale do
 					opacity = 0
 					for yy=0, upscale-1 do
 						for xx=0, upscale-1 do
-							opacity = opacity + data[0][(y+yy) * bmp_width * 3 + (x+xx) * 3]
+							if img_data[1 + (y+yy) * img_width + (x+xx)] then
+								opacity = opacity + 255
+							end
 						end
 					end
 					if opacity > 0 then
