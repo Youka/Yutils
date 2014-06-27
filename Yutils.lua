@@ -2,7 +2,7 @@
 	Copyright (c) 2014, Christoph "Youka" Spanknebel
 	All rights reserved.
 	
-	Version: 27th June 2014, 17:46 (GMT+1)
+	Version: 27th June 2014, 21:35 (GMT+1)
 	
 	Yutils
 		table
@@ -57,8 +57,9 @@
 -- Load FFI interface
 local ffi = require("ffi")
 -- Check OS
+local pango
 if ffi.os == "Windows" then
-	-- Set C definitions
+	-- Set C definitions for WinAPI
 	ffi.cdef([[
 typedef unsigned int UINT;
 typedef unsigned long DWORD;
@@ -130,10 +131,79 @@ BOOL ExtTextOutW(HDC, int, int, UINT, LPCRECT, LPCWSTR, UINT, const INT*);
 BOOL EndPath(HDC);
 int GetPath(HDC, LPPOINT, PBYTE, int);
 BOOL AbortPath(HDC);
-]]
-	)
-else
-	error("not supported operation system", 1)
+	]])
+else	-- Unix
+	-- Load pangocairo library
+	pango = ffi.load("libpangocairo-1.0.so")
+	-- Set C definitions for Pangocairo
+	ffi.cdef([[
+typedef enum{
+    CAIRO_FORMAT_INVALID   = -1,
+    CAIRO_FORMAT_ARGB32    = 0,
+    CAIRO_FORMAT_RGB24     = 1,
+    CAIRO_FORMAT_A8        = 2,
+    CAIRO_FORMAT_A1        = 3,
+    CAIRO_FORMAT_RGB16_565 = 4,
+    CAIRO_FORMAT_RGB30     = 5
+}cairo_format_t;
+typedef void cairo_surface_t;
+typedef void cairo_t;
+typedef void PangoLayout;
+typedef void* gpointer;
+typedef void PangoFontDescription;
+typedef enum{
+	PANGO_WEIGHT_THIN	= 100,
+	PANGO_WEIGHT_ULTRALIGHT = 200,
+	PANGO_WEIGHT_LIGHT = 300,
+	PANGO_WEIGHT_NORMAL = 400,
+	PANGO_WEIGHT_MEDIUM = 500,
+	PANGO_WEIGHT_SEMIBOLD = 600,
+	PANGO_WEIGHT_BOLD = 700,
+	PANGO_WEIGHT_ULTRABOLD = 800,
+	PANGO_WEIGHT_HEAVY = 900,
+	PANGO_WEIGHT_ULTRAHEAVY = 1000
+}PangoWeight;
+typedef enum{
+	PANGO_STYLE_NORMAL,
+	PANGO_STYLE_OBLIQUE,
+	PANGO_STYLE_ITALIC
+}PangoStyle;
+typedef void PangoAttrList;
+typedef void PangoAttribute;
+typedef enum{
+	PANGO_UNDERLINE_NONE,
+	PANGO_UNDERLINE_SINGLE,
+	PANGO_UNDERLINE_DOUBLE,
+	PANGO_UNDERLINE_LOW,
+	PANGO_UNDERLINE_ERROR
+}PangoUnderline;
+typedef int gboolean;
+
+cairo_surface_t* cairo_image_surface_create(cairo_format_t, int, int);
+void cairo_surface_destroy(cairo_surface_t*);
+cairo_t* cairo_create(cairo_surface_t*);
+void cairo_destroy(cairo_t*);
+PangoLayout* pango_cairo_create_layout(cairo_t*);
+void g_object_unref(gpointer);
+PangoFontDescription* pango_font_description_new(void);
+void pango_font_description_free(PangoFontDescription*);
+void pango_font_description_set_family(PangoFontDescription*, const char*);
+void pango_font_description_set_weight(PangoFontDescription*, PangoWeight);
+void pango_font_description_set_style(PangoFontDescription*, PangoStyle);
+void pango_font_description_set_absolute_size(PangoFontDescription*, double);
+void pango_layout_set_font_description(PangoLayout*, PangoFontDescription*);
+PangoAttrList* pango_attr_list_new(void);
+void pango_attr_list_unref(PangoAttrList*);
+void pango_attr_list_insert(PangoAttrList*, PangoAttribute*);
+PangoAttribute* pango_attr_underline_new(PangoUnderline);
+PangoAttribute* pango_attr_strikethrough_new(gboolean);
+void pango_layout_set_attributes(PangoLayout*, PangoAttrList*);
+
+
+// TODO
+
+
+	]])
 end
 
 -- Create library table
@@ -1140,159 +1210,203 @@ Yutils = {
 			local upscale = 64
 			local downscale = 1 / upscale
 			local shapescale = downscale * 8
-			-- Lua string in utf-8 to C string in utf-16
-			local function utf8_to_utf16(s)
-				-- Get string length
-				local len = #s
-				-- Get resulting utf16 characters number
-				local wlen = ffi.C.MultiByteToWideChar(65001, 0, s, len, nil, 0)	-- 65001 = CP_UTF8
-				-- Allocate array for utf16 characters storage
-				local ws = ffi.new("wchar_t[?]", wlen+1)
-				-- Convert utf8 string to utf16 characters
-				ffi.C.MultiByteToWideChar(65001, 0, s, len, ws, wlen)
-				-- Set null-termination to utf16 storage
-				ws[wlen] = 0
-				-- Return utf16 C string
-				return ws
-			end
-			-- Create device context and set light resources deleter
-			local resources_deleter
-			local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), resources_deleter)
-			-- Set context coordinates mapping mode
-			ffi.C.SetMapMode(dc, 1)	-- 1 = MM_TEXT
-			-- Set context backgrounds to transparent
-			ffi.C.SetBkMode(dc, 1)	-- 1 = TRANSPARENT
-			-- Convert family from utf8 to utf16
-			family = utf8_to_utf16(family)
-			if ffi.C.wcslen(family) > 31 then
-				error("family name to long", 2)
-			end
-			-- Create font handle
-			local font = ffi.C.CreateFontW(
-				size * upscale,	-- nHeight
-				0,	-- nWidth
-				0,	-- nEscapement
-				0,	-- nOrientation
-				bold and 700 or 400,	-- fnWeight (700 = FW_BOLD, 400 = FW_NORMAL)
-				italic and 1 or 0,	-- fdwItalic
-				underline and 1 or 0,	--fdwUnderline
-				strikeout and 1 or 0,	-- fdwStrikeOut
-				1,	-- fdwCharSet (1 = DEFAULT_CHARSET)
-				4,	-- fdwOutputPrecision (4 = OUT_TT_PRECIS)
-				0,	-- fdwClipPrecision (0 = CLIP_DEFAULT_PRECIS)
-				4,	-- fdwQuality (4 = ANTIALIASED_QUALITY)
-				0,	-- fdwPitchAndFamily (0 = FF_DONTCARE)
-				family
-			)
-			-- Set new font to device context
-			local old_font = ffi.C.SelectObject(dc, font)
-			-- Define light resources deleter
-			resources_deleter = function()
-				ffi.C.SelectObject(dc, old_font)
-				ffi.C.DeleteObject(font)
-				ffi.C.DeleteDC(dc)
-			end
-			-- Return font object
-			return {
-				-- Get font metrics
-				metrics = function()
-					-- Get font metrics from device context
-					local metrics = ffi.new("TEXTMETRICW[1]")
-					ffi.C.GetTextMetricsW(dc, metrics)
-					return {
-						height = metrics[0].tmHeight * downscale,
-						ascent = metrics[0].tmAscent * downscale,
-						descent = metrics[0].tmDescent * downscale,
-						internal_leading = metrics[0].tmInternalLeading * downscale,
-						external_leading = metrics[0].tmExternalLeading * downscale
-					}
-				end,
-				-- Get text extents
-				text_extents = function(text)
-					-- Check argument
-					if type(text) ~= "string" then
-						error("text expected", 2)
-					end
-					-- Get text extents with this font
-					text = utf8_to_utf16(text)
-					local size = ffi.new("SIZE[1]")
-					ffi.C.GetTextExtentPoint32W(dc, text, ffi.C.wcslen(text), size)
-					return {
-						width = size[0].cx * downscale,
-						height = size[0].cy * downscale
-					}
-				end,
-				-- Convert text to ASS shape
-				text_to_shape = function(text)
-					-- Check argument
-					if type(text) ~= "string" then
-						error("text expected", 2)
-					end
-					-- Initialize shape as table
-					local shape, shape_n = {}, 0
-					-- Add path to device context
-					text = utf8_to_utf16(text)
-					ffi.C.BeginPath(dc)
-					ffi.C.ExtTextOutW(dc, 0, 0, 0, nil, text, ffi.C.wcslen(text), nil)
-					ffi.C.EndPath(dc)
-					-- Get path data
-					local points_n = ffi.C.GetPath(dc, nil, nil, 0)
-					if points_n > 0 then
-						local points, types = ffi.new("POINT[?]", points_n), ffi.new("BYTE[?]", points_n)
-						ffi.C.GetPath(dc, points, types, points_n)
-						-- Convert points to shape
-						local i, last_type, cur_type, cur_point = 0
-						while i < points_n do
-							cur_type, cur_point = types[i], points[i]
-							if cur_type == 6 then	-- 6 = PT_MOVETO
-								if last_type ~= 6 then
-									shape_n = shape_n + 1
-									shape[shape_n] = "m"
-									last_type = cur_type
+			-- Body by operation system
+			if ffi.os == "Windows" then
+				-- Lua string in utf-8 to C string in utf-16
+				local function utf8_to_utf16(s)
+					-- Get string length
+					local len = #s
+					-- Get resulting utf16 characters number
+					local wlen = ffi.C.MultiByteToWideChar(65001, 0, s, len, nil, 0)	-- 65001 = CP_UTF8
+					-- Allocate array for utf16 characters storage
+					local ws = ffi.new("wchar_t[?]", wlen+1)
+					-- Convert utf8 string to utf16 characters
+					ffi.C.MultiByteToWideChar(65001, 0, s, len, ws, wlen)
+					-- Set null-termination to utf16 storage
+					ws[wlen] = 0
+					-- Return utf16 C string
+					return ws
+				end
+				-- Create device context and set light resources deleter
+				local resources_deleter
+				local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), resources_deleter)
+				-- Set context coordinates mapping mode
+				ffi.C.SetMapMode(dc, 1)	-- 1 = MM_TEXT
+				-- Set context backgrounds to transparent
+				ffi.C.SetBkMode(dc, 1)	-- 1 = TRANSPARENT
+				-- Convert family from utf8 to utf16
+				family = utf8_to_utf16(family)
+				if ffi.C.wcslen(family) > 31 then
+					error("family name to long", 2)
+				end
+				-- Create font handle
+				local font = ffi.C.CreateFontW(
+					size * upscale,	-- nHeight
+					0,	-- nWidth
+					0,	-- nEscapement
+					0,	-- nOrientation
+					bold and 700 or 400,	-- fnWeight (700 = FW_BOLD, 400 = FW_NORMAL)
+					italic and 1 or 0,	-- fdwItalic
+					underline and 1 or 0,	--fdwUnderline
+					strikeout and 1 or 0,	-- fdwStrikeOut
+					1,	-- fdwCharSet (1 = DEFAULT_CHARSET)
+					4,	-- fdwOutputPrecision (4 = OUT_TT_PRECIS)
+					0,	-- fdwClipPrecision (0 = CLIP_DEFAULT_PRECIS)
+					4,	-- fdwQuality (4 = ANTIALIASED_QUALITY)
+					0,	-- fdwPitchAndFamily (0 = FF_DONTCARE)
+					family
+				)
+				-- Set new font to device context
+				local old_font = ffi.C.SelectObject(dc, font)
+				-- Define light resources deleter
+				resources_deleter = function()
+					ffi.C.SelectObject(dc, old_font)
+					ffi.C.DeleteObject(font)
+					ffi.C.DeleteDC(dc)
+				end
+				-- Return font object
+				return {
+					-- Get font metrics
+					metrics = function()
+						-- Get font metrics from device context
+						local metrics = ffi.new("TEXTMETRICW[1]")
+						ffi.C.GetTextMetricsW(dc, metrics)
+						return {
+							height = metrics[0].tmHeight * downscale,
+							ascent = metrics[0].tmAscent * downscale,
+							descent = metrics[0].tmDescent * downscale,
+							internal_leading = metrics[0].tmInternalLeading * downscale,
+							external_leading = metrics[0].tmExternalLeading * downscale
+						}
+					end,
+					-- Get text extents
+					text_extents = function(text)
+						-- Check argument
+						if type(text) ~= "string" then
+							error("text expected", 2)
+						end
+						-- Get text extents with this font
+						text = utf8_to_utf16(text)
+						local size = ffi.new("SIZE[1]")
+						ffi.C.GetTextExtentPoint32W(dc, text, ffi.C.wcslen(text), size)
+						return {
+							width = size[0].cx * downscale,
+							height = size[0].cy * downscale
+						}
+					end,
+					-- Convert text to ASS shape
+					text_to_shape = function(text)
+						-- Check argument
+						if type(text) ~= "string" then
+							error("text expected", 2)
+						end
+						-- Initialize shape as table
+						local shape, shape_n = {}, 0
+						-- Add path to device context
+						text = utf8_to_utf16(text)
+						ffi.C.BeginPath(dc)
+						ffi.C.ExtTextOutW(dc, 0, 0, 0, nil, text, ffi.C.wcslen(text), nil)
+						ffi.C.EndPath(dc)
+						-- Get path data
+						local points_n = ffi.C.GetPath(dc, nil, nil, 0)
+						if points_n > 0 then
+							local points, types = ffi.new("POINT[?]", points_n), ffi.new("BYTE[?]", points_n)
+							ffi.C.GetPath(dc, points, types, points_n)
+							-- Convert points to shape
+							local i, last_type, cur_type, cur_point = 0
+							while i < points_n do
+								cur_type, cur_point = types[i], points[i]
+								if cur_type == 6 then	-- 6 = PT_MOVETO
+									if last_type ~= 6 then
+										shape_n = shape_n + 1
+										shape[shape_n] = "m"
+										last_type = cur_type
+									end
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
+									shape_n = shape_n + 2
+									i = i + 1
+								elseif cur_type == 2 or cur_type == 3 then	-- 2 = PT_LINETO, 3 = PT_LINETO|PT_CLOSEFIGURE
+									if last_type ~= 2 then
+										shape_n = shape_n + 1
+										shape[shape_n] = "l"
+										last_type = cur_type
+									end
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
+									shape_n = shape_n + 2
+									i = i + 1
+								elseif cur_type == 4 or cur_type == 5 then	-- 4 = PT_BEZIERTO, 5 = PT_BEZIERTO|PT_CLOSEFIGURE
+									if last_type ~= 4 then
+										shape_n = shape_n + 1
+										shape[shape_n] = "b"
+										last_type = cur_type
+									end
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
+									shape[shape_n+3] = Yutils.math.round(points[i+1].x * shapescale)
+									shape[shape_n+4] = Yutils.math.round(points[i+1].y * shapescale)
+									shape[shape_n+5] = Yutils.math.round(points[i+2].x * shapescale)
+									shape[shape_n+6] = Yutils.math.round(points[i+2].y * shapescale)
+									shape_n = shape_n + 6
+									i = i + 3
+								else	-- invalid type (should never happen, but let us be safe)
+									i = i + 1
 								end
-								shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
-								shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
-								shape_n = shape_n + 2
-								i = i + 1
-							elseif cur_type == 2 or cur_type == 3 then	-- 2 = PT_LINETO, 3 = PT_LINETO|PT_CLOSEFIGURE
-								if last_type ~= 2 then
+								if cur_type % 2 == 1 then	-- odd = PT_CLOSEFIGURE
 									shape_n = shape_n + 1
-									shape[shape_n] = "l"
-									last_type = cur_type
+									shape[shape_n] = "c"
 								end
-								shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
-								shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
-								shape_n = shape_n + 2
-								i = i + 1
-							elseif cur_type == 4 or cur_type == 5 then	-- 4 = PT_BEZIERTO, 5 = PT_BEZIERTO|PT_CLOSEFIGURE
-								if last_type ~= 4 then
-									shape_n = shape_n + 1
-									shape[shape_n] = "b"
-									last_type = cur_type
-								end
-								shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
-								shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
-								shape[shape_n+3] = Yutils.math.round(points[i+1].x * shapescale)
-								shape[shape_n+4] = Yutils.math.round(points[i+1].y * shapescale)						
-								shape[shape_n+5] = Yutils.math.round(points[i+2].x * shapescale)
-								shape[shape_n+6] = Yutils.math.round(points[i+2].y * shapescale)
-								shape_n = shape_n + 6
-								i = i + 3
-							else	-- invalid type (should never happen, but let us be safe)
-								i = i + 1
-							end
-							if cur_type % 2 == 1 then	-- odd = PT_CLOSEFIGURE
-								shape_n = shape_n + 1
-								shape[shape_n] = "c"
 							end
 						end
+						-- Clear device context path
+						ffi.C.AbortPath(dc)
+						-- Return shape as string
+						return table.concat(shape, " ")
 					end
-					-- Clear device context path
-					ffi.C.AbortPath(dc)
-					-- Return shape as string
-					return table.concat(shape, " ")
-				end
-			}
+				}
+			else	-- Unix
+				-- Create surface, context & layout
+				local surface = pango.cairo_image_surface_create(ffi.C.CAIRO_FORMAT_A8, 1, 1)
+				local context = pango.cairo_create(surface)
+				local layout = ffi.gc(pango.pango_cairo_create_layout(context), function()
+					pango.g_object_unref(layout)
+					pango.cairo_destroy(context)
+					pango.cairo_surface_destroy(surface)
+				end)
+				-- Set font to layout
+				local font_desc = ffi.gc(pango.pango_font_description_new(), pango.pango_font_description_free)
+				pango.pango_font_description_set_family(font_desc, ffi.cast("const char[]", family))
+				pango.pango_font_description_set_weight(font_desc, bold and ffi.C.PANGO_WEIGHT_BOLD or ffi.C.PANGO_WEIGHT_NORMAL)
+				pango.pango_font_description_set_style(font_desc, italic and ffi.C.PANGO_STYLE_ITALIC or ffi.C.PANGO_STYLE_NORMAL)
+				pango.pango_font_description_set_absolute_size(font_desc, size * 1024 --[[PANGO_SCALE]] * upscale)
+				pango.pango_layout_set_font_description(layout, font_desc)
+				local attr = ffi.gc(pango.pango_attr_list_new(), pango.pango_attr_list_unref)
+				pango.pango_attr_list_insert(attr, pango.pango_attr_underline_new(underline and ffi.C.PANGO_UNDERLINE_SINGLE or ffi.C.PANGO_UNDERLINE_NONE))
+				pango.pango_attr_list_insert(attr, pango.pango_attr_strikethrough_new(strikeout))
+				pango.pango_layout_set_attributes(layout, attr)
+				-- Return font object
+				return {
+					-- Get font metrics
+					metrics = function()
+
+						-- TODO
+
+					end,
+					-- Get text extents
+					text_extents = function(text)
+
+						-- TODO
+
+					end,
+					-- Convert text to ASS shape
+					text_to_shape = function(text)
+
+						-- TODO
+
+					end
+				}
+			end
 		end
 	}
 }
