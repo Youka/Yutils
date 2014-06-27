@@ -2,7 +2,7 @@
 	Copyright (c) 2014, Christoph "Youka" Spanknebel
 	All rights reserved.
 	
-	Version: 27th June 2014, 22:017 (GMT+1)
+	Version: 27th June 2014, 22:42 (GMT+1)
 	
 	Yutils
 		table
@@ -232,6 +232,7 @@ void cairo_save(cairo_t*);
 void cairo_restore(cairo_t*);
 void cairo_scale(cairo_t*, double, double);
 void pango_cairo_layout_path(cairo_t*, PangoLayout*);
+void cairo_new_path(cairo_t*);
 	]])
 end
 
@@ -240,7 +241,7 @@ local Yutils
 Yutils = {
 	-- Table sublibrary
 	table = {
-		-- Copy table deep
+		-- Copies table deep
 		copy = function(t)
 			-- Check arguments
 			if type(t) ~= "table" then
@@ -256,7 +257,7 @@ Yutils = {
 			end
 			return copy_recursive(t)
 		end,
-		-- Convert table to string
+		-- Converts table to string
 		tostring = function(t)
 			-- Check arguments
 			if type(t) ~= "table" then
@@ -389,7 +390,7 @@ Yutils = {
 			end
 			return ret_x, ret_y, ret_z
 		end,
-		-- Create 3d matrix
+		-- Creates 3d matrix
 		create_matrix = function()
 			-- Matrix data
 			local matrix = {1, 0, 0, 0,
@@ -423,7 +424,7 @@ Yutils = {
 								0, 0, 1, 0,
 								0, 0, 0, 1}
 				end,
-				-- Multiply matrix with given one
+				-- Multiplies matrix with given one
 				multiply = function(matrix2)
 					-- Check arguments
 					if type(matrix2) ~= "table" or #matrix2 ~= 16 then
@@ -447,7 +448,7 @@ Yutils = {
 					-- Replace old matrix with multiply result
 					matrix = new_matrix
 				end,
-				-- Apply matrix to point 
+				-- Applies matrix to point
 				transform = function(x, y, z, w)
 					-- Check arguments
 					if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" or (w ~= nil and type(w) ~= "number") then
@@ -464,7 +465,7 @@ Yutils = {
 							x * matrix[4] + y * matrix[8] + z * matrix[12] + w * matrix[16]
 				end
 			}
-			-- Apply translation to matrix
+			-- Applies translation to matrix
 			obj.translate = function(x, y, z)
 				-- Check arguments
 				if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
@@ -476,7 +477,7 @@ Yutils = {
 								0, 0, 1, 0,
 								x, y, z, 1})
 			end
-			-- Apply scale to matrix
+			-- Applies scale to matrix
 			obj.scale = function(x, y, z)
 				-- Check arguments
 				if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
@@ -488,7 +489,7 @@ Yutils = {
 								0, 0, z, 0,
 								0, 0, 0, 1})
 			end
-			-- Applay rotation to matrix
+			-- Applies rotation to matrix
 			obj.rotate = function(axis, angle)
 				-- Check arguments
 				if (axis ~= "x" and axis ~= "y" and axis ~= "z") or type(angle) ~= "number" then
@@ -564,7 +565,7 @@ Yutils = {
 			local r = min + math.random(0, math.ceil((max - min) / step)) * step
 			return r > max and max or r
 		end,
-		-- Round number
+		-- Rounds number
 		round = function(x)
 			-- Check argument
 			if type(x) ~= "number" then
@@ -604,7 +605,7 @@ Yutils = {
 	},
 	-- Shape sublibrary
 	shape = {
-		-- Calculate shape bounding box
+		-- Calculates shape bounding box
 		bounding = function(shape)
 			-- Check argument
 			if type(shape) ~= "string" then
@@ -622,7 +623,7 @@ Yutils = {
 			end
 			return x1, y1, x2, y2
 		end,
-		-- Filter shape coordinates
+		-- Filters shape coordinates
 		filter = function(shape, filter)
 			-- Check arguments
 			if type(shape) ~= "string" or type(filter) ~= "function" then
@@ -637,7 +638,7 @@ Yutils = {
 			end)
 			return new_shape
 		end,
-		-- Convert shape curves to lines
+		-- Converts shape curves to lines
 		flatten = function(shape)
 			-- Check argument
 			if type(shape) ~= "string" then
@@ -736,7 +737,7 @@ Yutils = {
 			-- Return shape without curves
 			return shape
 		end,
-		-- Shift shape coordinates
+		-- Shifts shape coordinates
 		move = function(shape, x, y)
 			-- Check arguments
 			if type(shape) ~= "string" or type(x) ~= "number" or type(y) ~= "number" then
@@ -747,7 +748,7 @@ Yutils = {
 				return cx + x, cy + y
 			end)
 		end,
-		-- Split shape lines into shorter segments
+		-- Splits shape lines into shorter segments
 		split = function(shape, max_len)
 			-- Check arguments
 			if type(shape) ~= "string" or type(max_len) ~= "number" or max_len <= 0 then
@@ -793,7 +794,7 @@ Yutils = {
 			end)
 			return shape
 		end,
-		-- Convert shape to stroke version
+		-- Converts shape to stroke version
 		to_outline = function(shape, width)
 			-- Check arguments
 			if type(shape) ~= "string" or type(width) ~= "number" or width <= 0 then
@@ -961,7 +962,7 @@ Yutils = {
 			end
 			return table.concat(stroke_shape, " ")
 		end,
-		-- Convert shape to pixels
+		-- Converts shape to pixels
 		to_pixels = function(shape)
 			-- Check argument
 			if type(shape) ~= "string" then
@@ -1059,7 +1060,7 @@ Yutils = {
 			end
 			-- Render shape on image
 			render_shape(img_width, img_height, img_data, shape)
-			-- Extract pixels from context
+			-- Extract pixels from image
 			local pixels, pixels_n, opacity = {}, 0
 			for y=0, img_height-upscale, upscale do
 				for x=0, img_width-upscale, upscale do
@@ -1086,7 +1087,7 @@ Yutils = {
 	},
 	-- Decoder sublibrary
 	decode = {
-		-- Create BMP file reader
+		-- Creates BMP file reader
 		create_bmp_reader = function(filename)
 			-- Check argument
 			if type(filename) ~= "string" then
@@ -1229,7 +1230,7 @@ Yutils = {
 			end
 			return obj
 		end,
-		-- Create font
+		-- Creates font
 		create_font = function(family, bold, italic, underline, strikeout, size)
 			-- Check arguments
 			if type(family) ~= "string" or type(bold) ~= "boolean" or type(italic) ~= "boolean" or type(underline) ~= "boolean" or type(strikeout) ~= "boolean" or type(size) ~= "number" or size <= 0 then
@@ -1323,7 +1324,7 @@ Yutils = {
 							height = size[0].cy * downscale
 						}
 					end,
-					-- Convert text to ASS shape
+					-- Converts text to ASS shape
 					text_to_shape = function(text)
 						-- Check argument
 						if type(text) ~= "string" then
@@ -1447,7 +1448,7 @@ Yutils = {
 							height = rect[0].height * downscale
 						}
 					end,
-					-- Convert text to ASS shape
+					-- Converts text to ASS shape
 					text_to_shape = function(text)
 						-- Check argument
 						if type(text) ~= "string" then
@@ -1463,6 +1464,7 @@ Yutils = {
 
 						-- TODO
 
+						pango.cairo_new_path(context)
 					end
 				}
 			end
