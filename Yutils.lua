@@ -2,7 +2,7 @@
 	Copyright (c) 2014, Christoph "Youka" Spanknebel
 	All rights reserved.
 	
-	Version: 27th June 2014, 21:35 (GMT+1)
+	Version: 27th June 2014, 22:017 (GMT+1)
 	
 	Yutils
 		table
@@ -177,7 +177,28 @@ typedef enum{
 	PANGO_UNDERLINE_LOW,
 	PANGO_UNDERLINE_ERROR
 }PangoUnderline;
-typedef int gboolean;
+typedef int gint;
+typedef gint gboolean;
+typedef void PangoContext;
+typedef unsigned int guint;
+typedef struct{
+	guint ref_count;
+	int ascent;
+	int descent;
+	int approximate_char_width;
+	int approximate_digit_width;
+	int underline_position;
+	int underline_thickness;
+	int strikethrough_position;
+	int strikethrough_thickness;
+}PangoFontMetrics;
+typedef void PangoLanguage;
+typedef struct{
+	int x;
+	int y;
+	int width;
+	int height;
+}PangoRectangle;
 
 cairo_surface_t* cairo_image_surface_create(cairo_format_t, int, int);
 void cairo_surface_destroy(cairo_surface_t*);
@@ -198,11 +219,19 @@ void pango_attr_list_insert(PangoAttrList*, PangoAttribute*);
 PangoAttribute* pango_attr_underline_new(PangoUnderline);
 PangoAttribute* pango_attr_strikethrough_new(gboolean);
 void pango_layout_set_attributes(PangoLayout*, PangoAttrList*);
-
-
-// TODO
-
-
+PangoContext* pango_layout_get_context(PangoLayout*);
+const PangoFontDescription* pango_layout_get_font_description(PangoLayout);
+PangoFontMetrics* pango_context_get_metrics(PangoContext*, const PangoFontDescription*, PangoLanguage*);
+void pango_font_metrics_unref(PangoFontMetrics*);
+int pango_font_metrics_get_ascent(PangoFontMetrics*);
+int pango_font_metrics_get_descent(PangoFontMetrics*);
+int pango_layout_get_spacing(PangoLayout*);
+void pango_layout_set_text(PangoLayout*, const char*, int);
+void pango_layout_get_pixel_extents(PangoLayout*, PangoRectangle*, PangoRectangle*);
+void cairo_save(cairo_t*);
+void cairo_restore(cairo_t*);
+void cairo_scale(cairo_t*, double, double);
+void pango_cairo_layout_path(cairo_t*, PangoLayout*);
 	]])
 end
 
@@ -1376,7 +1405,7 @@ Yutils = {
 				end)
 				-- Set font to layout
 				local font_desc = ffi.gc(pango.pango_font_description_new(), pango.pango_font_description_free)
-				pango.pango_font_description_set_family(font_desc, ffi.cast("const char[]", family))
+				pango.pango_font_description_set_family(font_desc, ffi.cast("int8_t[]", family))
 				pango.pango_font_description_set_weight(font_desc, bold and ffi.C.PANGO_WEIGHT_BOLD or ffi.C.PANGO_WEIGHT_NORMAL)
 				pango.pango_font_description_set_style(font_desc, italic and ffi.C.PANGO_STYLE_ITALIC or ffi.C.PANGO_STYLE_NORMAL)
 				pango.pango_font_description_set_absolute_size(font_desc, size * 1024 --[[PANGO_SCALE]] * upscale)
@@ -1389,18 +1418,48 @@ Yutils = {
 				return {
 					-- Get font metrics
 					metrics = function()
-
-						-- TODO
-
+						local context = pango.pango_layout_get_context(layout)
+						local font_desc = pango.pango_layout_get_font_description(layout)
+						local metrics = ffi.gc(pango.pango_context_get_metrics(context, font_desc, nil), pango.pango_font_metrics_unref)
+						local ascent, descent = pango.pango_font_metrics_get_ascent(metrics) / 1024 * downscale,
+												pango.pango_font_metrics_get_descent(metrics) / 1024 * downscale
+						return {
+							height = ascent + descent,
+							ascent = ascent,
+							descent = descent,
+							internal_leading = 0,
+							external_leading = pango.pango_layout_get_spacing(layout) / 1024 * downscale
+						}
 					end,
 					-- Get text extents
 					text_extents = function(text)
-
-						-- TODO
-
+						-- Check argument
+						if type(text) ~= "string" then
+							error("text expected", 2)
+						end
+						-- Set text to layout
+						pango.pango_layout_set_text(layout, ffi.cast("int8_t[]", text), -1)
+						-- Get text extents with this font
+						local rect = ffi.new("PangoRectangle[1]")
+						pango.pango_layout_get_pixel_extents(layout, nil, rect)
+						return {
+							width = rect[0].width * downscale,
+							height = rect[0].height * downscale
+						}
 					end,
 					-- Convert text to ASS shape
 					text_to_shape = function(text)
+						-- Check argument
+						if type(text) ~= "string" then
+							error("text expected", 2)
+						end
+						-- Set text path to layout
+						pango.pango_layout_set_text(layout, ffi.cast("int8_t[]", text), -1)
+						pango.cairo_save(context)
+						pango.cairo_scale(context, downscale, downscale)
+						pango.pango_cairo_layout_path(context, layout)
+						pango.cairo_restore(context)
+						-- Convert path to shape
 
 						-- TODO
 
