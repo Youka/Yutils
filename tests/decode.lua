@@ -1,0 +1,15 @@
+local Yutils = dofile("../Yutils.lua")
+
+local bmp = Yutils.decode.create_bmp_reader("test.bmp")
+print("File size: " .. bmp.get_file_size())
+print("Width: " .. bmp.get_width())
+print("Height: " .. bmp.get_height())
+print("Data size: " .. bmp.get_data_size())
+print("Row size: " .. bmp.get_row_size())
+print("Packed data:\n" .. Yutils.table.tostring(bmp.get_data_packed()))
+print("Data text: " .. bmp.get_data_text())
+
+local font = Yutils.decode.create_font("Comic Sans MS", true, true, true, false, 24)
+print("Metrics:\n" .. Yutils.table.tostring(font.metrics()))
+print("Extents:\n" .. Yutils.table.tostring(font.text_extents("TestのMy")))
+print("Text shape: " .. font.text_to_shape("TestのMy"))
