@@ -1,8 +1,25 @@
 --[[
 	Copyright (c) 2014, Christoph "Youka" Spanknebel
-	All rights reserved.
-	
-	Version: 28th June 2014, 20:17 (GMT+1)
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy
+	of this software and associated documentation files (the "Software"), to deal
+	in the Software without restriction, including without limitation the rights
+	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+	copies of the Software, and to permit persons to whom the Software is
+	furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in
+	all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+	THE SOFTWARE.
+	-----------------------------------------------------------------------------------------------------------------
+	Version: 29th June 2014, 01:21 (GMT+1)
 	
 	Yutils
 		table
@@ -17,11 +34,11 @@
 			create_matrix() -> table
 				get_data() -> table
 				set_data(matrix)
-				identity()
-				multiply(matrix2)
-				translate(x, y, z)
-				scale(x, y, z)
-				rotate(axis, angle)
+				identity() -> table
+				multiply(matrix2) -> table
+				translate(x, y, z) -> table
+				scale(x, y, z) -> table
+				rotate(axis, angle) -> table
 				transform(x, y, z, w) -> number, number, number, number
 			distance(x, y, z) -> number
 			degree(x1, y1, z1, x2, y2, z2) -> number
@@ -423,7 +440,8 @@ Yutils = {
 								0, 0, 1, 0,
 								0, 0, 0, 1}
 			-- Matrix object
-			local obj = {
+			local obj
+			obj = {
 				-- Get matrix data
 				get_data = function()
 					return Yutils.table.copy(matrix)
@@ -444,10 +462,13 @@ Yutils = {
 				end,
 				-- Set matrix to identity
 				identity = function()
+					-- Set matrix to default / no transformation
 					matrix = {1, 0, 0, 0,
 								0, 1, 0, 0,
 								0, 0, 1, 0,
 								0, 0, 0, 1}
+					-- Return this object
+					return obj
 				end,
 				-- Multiplies matrix with given one
 				multiply = function(matrix2)
@@ -472,6 +493,64 @@ Yutils = {
 					end
 					-- Replace old matrix with multiply result
 					matrix = new_matrix
+					-- Return this object
+					return obj
+				end,
+				-- Applies translation to matrix
+				translate = function(x, y, z)
+					-- Check arguments
+					if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
+						error("3 translation values expected", 2)
+					end
+					-- Add translation to matrix
+					obj.multiply({1, 0, 0, 0,
+									0, 1, 0, 0,
+									0, 0, 1, 0,
+									x, y, z, 1})
+					-- Return this object
+					return obj
+				end,
+				-- Applies scale to matrix
+				scale = function(x, y, z)
+					-- Check arguments
+					if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
+						error("3 scale factors expected", 2)
+					end
+					-- Add scale to matrix
+					obj.multiply({x, 0, 0, 0,
+									0, y, 0, 0,
+									0, 0, z, 0,
+									0, 0, 0, 1})
+					-- Return this object
+					return obj
+				end,
+				-- Applies rotation to matrix
+				rotate = function(axis, angle)
+					-- Check arguments
+					if (axis ~= "x" and axis ~= "y" and axis ~= "z") or type(angle) ~= "number" then
+						error("axis (as string) and angle (in degree) expected", 2)
+					end
+					-- Convert angle from degree to radian
+					angle = math.rad(angle)
+					-- Rotate by axis
+					if axis == "x" then
+						obj.multiply({1, 0, 0, 0,
+									0, math.cos(angle), -math.sin(angle), 0,
+									0, math.sin(angle), math.cos(angle), 0,
+									0, 0, 0, 1})
+					elseif axis == "y" then
+						obj.multiply({math.cos(angle), 0, math.sin(angle), 0,
+									0, 1, 0, 0,
+									-math.sin(angle), 0, math.cos(angle), 0,
+									0, 0, 0, 1})
+					else	-- axis == "z"
+						obj.multiply({math.cos(angle), -math.sin(angle), 0, 0,
+									math.sin(angle), math.cos(angle), 0, 0,
+									0, 0, 1, 0,
+									0, 0, 0, 1})
+					end
+					-- Return this object
+					return obj
 				end,
 				-- Applies matrix to point
 				transform = function(x, y, z, w)
@@ -490,56 +569,6 @@ Yutils = {
 							x * matrix[4] + y * matrix[8] + z * matrix[12] + w * matrix[16]
 				end
 			}
-			-- Applies translation to matrix
-			obj.translate = function(x, y, z)
-				-- Check arguments
-				if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
-					error("3 translation values expected", 2)
-				end
-				-- Add translation to matrix
-				obj.multiply({1, 0, 0, 0,
-								0, 1, 0, 0,
-								0, 0, 1, 0,
-								x, y, z, 1})
-			end
-			-- Applies scale to matrix
-			obj.scale = function(x, y, z)
-				-- Check arguments
-				if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
-					error("3 scale factors expected", 2)
-				end
-				-- Add scale to matrix
-				obj.multiply({x, 0, 0, 0,
-								0, y, 0, 0,
-								0, 0, z, 0,
-								0, 0, 0, 1})
-			end
-			-- Applies rotation to matrix
-			obj.rotate = function(axis, angle)
-				-- Check arguments
-				if (axis ~= "x" and axis ~= "y" and axis ~= "z") or type(angle) ~= "number" then
-					error("axis (as string) and angle (in degree) expected", 2)
-				end
-				-- Convert angle from degree to radian
-				angle = math.rad(angle)
-				-- Rotate by axis
-				if axis == "x" then
-					obj.multiply({1, 0, 0, 0,
-								0, math.cos(angle), -math.sin(angle), 0,
-								0, math.sin(angle), math.cos(angle), 0,
-								0, 0, 0, 1})
-				elseif axis == "y" then
-					obj.multiply({math.cos(angle), 0, math.sin(angle), 0,
-								0, 1, 0, 0,
-								-math.sin(angle), 0, math.cos(angle), 0,
-								0, 0, 0, 1})
-				else	-- axis == "z"
-					obj.multiply({math.cos(angle), -math.sin(angle), 0, 0,
-								math.sin(angle), math.cos(angle), 0, 0,
-								0, 0, 1, 0,
-								0, 0, 0, 1})
-				end
-			end
 			return obj
 		end,
 		-- Length of vector
