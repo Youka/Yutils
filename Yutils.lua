@@ -2,7 +2,7 @@
 	Copyright (c) 2014, Christoph "Youka" Spanknebel
 	All rights reserved.
 	
-	Version: 28th June 2014, 07:39 (GMT+1)
+	Version: 28th June 2014, 20:17 (GMT+1)
 	
 	Yutils
 		table
@@ -779,44 +779,67 @@ Yutils = {
 			if type(shape) ~= "string" or type(max_len) ~= "number" or max_len <= 0 then
 				error("shape and maximal line length expected", 2)
 			end
+			-- Remove shape closings (figures become line-completed)
+			shape = shape:gsub("%s+c", "")
+			-- Line splitter + string encoder
+			local function line_split(x0, y0, x1, y1)
+				-- Line direction & length
+				local rel_x, rel_y = x1 - x0, y1 - y0
+				local distance = Yutils.math.distance(rel_x, rel_y)
+				-- Line too long -> split!
+				if distance > max_len then
+					-- Generate line segments
+					local lines, lines_n, distance_rest, pct = {}, 0, distance % max_len
+					for cur_distance = distance_rest > 0 and distance_rest or max_len, distance, max_len do
+						pct = cur_distance / distance
+						lines_n = lines_n + 1
+						lines[lines_n] = string.format("%d %d ", x0 + rel_x * pct, y0 + rel_y * pct)
+					end
+					return table.concat(lines):sub(1,-2)
+				-- No line split
+				else
+					return string.format("%d %d", x1, y1)
+				end
+			end
 			-- Split shape long lines to short ones
-			local line_mode, last_point = false
+			local line_mode, last_point, last_move = false
 			shape = shape:gsub("(%a?)(%s*)(%-?%d+)%s+(%-?%d+)", function(typ, space, x, y)
-				-- En-/disable line mode
+				-- Output buffer
+				local result = ""
+				-- Close last figure
+				if typ == "m" and last_point and last_move and not (last_point[1] == last_move[1] and last_point[2] == last_move[2]) then
+					result = string.format("%s%s ", line_mode and "" or "l ", line_split(last_point[1], last_point[2], last_move[1], last_move[2]))
+				end
+				-- Add current type and space to output
+				result = string.format("%s%s%s", result, typ, space)
+				-- En-/disable line mode by current type
 				if typ ~= "" then
 					line_mode = typ == "l"
 				end
-				-- Lines buffer
-				local lines
 				-- Line with previous point?
 				if line_mode and last_point then
-					-- Line direction & length
-					local rel_x, rel_y = x - last_point[1], y - last_point[2]
-					local distance = Yutils.math.distance(rel_x, rel_y)
-					-- Line too long -> split!
-					if distance > max_len then
-						-- Generate line segments
-						lines = {typ .. space}
-						local lines_n, distance_rest, pct = 1, distance % max_len
-						for cur_distance = distance_rest > 0 and distance_rest or max_len, distance, max_len do
-							pct = cur_distance / distance
-							lines_n = lines_n + 1
-							lines[lines_n] = string.format("%d %d ", last_point[1] + rel_x * pct, last_point[2] + rel_y * pct)
-						end
-						lines = table.concat(lines):sub(1,-2)
-					-- No line split
-					else
-						lines = string.format("%s%s%d %d", typ, space, x, y)
-					end
-				-- No line split
+					result = result .. line_split(last_point[1], last_point[2], x, y)
 				else
-					lines = string.format("%s%s%d %d", typ, space, x, y)
+					result = string.format("%s%d %d", result, x, y)
 				end
-				-- Update last point
+				-- Update last point & move
 				last_point = {x, y}
-				-- Return new lines
-				return lines
+				if typ == "m" then
+					last_move = {x, y}
+				end
+				-- Return resulting point(s)
+				return result
 			end)
+			-- Close last figure of shape
+			if last_move then
+				shape = shape:gsub("(%-?%d+)%s+(%-?%d+)%s*$", function(x, y)
+					local result = string.format("%d %d", x, y)
+					if not (last_move[1] == x and last_move[2] == y) then
+						result = string.format("%s %s%s", result, line_mode and "" or "l ", line_split(x, y, last_move[1], last_move[2]))
+					end
+					return result
+				end, 1)
+			end
 			return shape
 		end,
 		-- Converts shape to stroke version
