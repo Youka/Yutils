@@ -2,7 +2,7 @@
 	Copyright (c) 2014, Christoph "Youka" Spanknebel
 	All rights reserved.
 	
-	Version: 27th June 2014, 22:42 (GMT+1)
+	Version: 28th June 2014, 07:39 (GMT+1)
 	
 	Yutils
 		table
@@ -199,6 +199,29 @@ typedef struct{
 	int width;
 	int height;
 }PangoRectangle;
+typedef enum{
+	CAIRO_STATUS_SUCCESS = 0
+}cairo_status_t;
+typedef enum{
+	CAIRO_PATH_MOVE_TO,
+	CAIRO_PATH_LINE_TO,
+	CAIRO_PATH_CURVE_TO,
+	CAIRO_PATH_CLOSE_PATH
+}cairo_path_data_type_t;
+typedef union{
+	struct{
+		cairo_path_data_type_t type;
+		int length;
+	}header;
+	struct{
+		double x, y;
+	}point;
+}cairo_path_data_t;
+typedef struct{
+	cairo_status_t status;
+	cairo_path_data_t* data;
+	int num_data;
+}cairo_path_t;
 
 cairo_surface_t* cairo_image_surface_create(cairo_format_t, int, int);
 void cairo_surface_destroy(cairo_surface_t*);
@@ -233,6 +256,8 @@ void cairo_restore(cairo_t*);
 void cairo_scale(cairo_t*, double, double);
 void pango_cairo_layout_path(cairo_t*, PangoLayout*);
 void cairo_new_path(cairo_t*);
+cairo_path_t* cairo_copy_path(cairo_t*);
+void cairo_path_destroy(cairo_path_t*);
 	]])
 end
 
@@ -1399,7 +1424,8 @@ Yutils = {
 				-- Create surface, context & layout
 				local surface = pango.cairo_image_surface_create(ffi.C.CAIRO_FORMAT_A8, 1, 1)
 				local context = pango.cairo_create(surface)
-				local layout = ffi.gc(pango.pango_cairo_create_layout(context), function()
+				local layout
+				layout = ffi.gc(pango.pango_cairo_create_layout(context), function()
 					pango.g_object_unref(layout)
 					pango.cairo_destroy(context)
 					pango.cairo_surface_destroy(surface)
@@ -1457,15 +1483,55 @@ Yutils = {
 						-- Set text path to layout
 						pango.pango_layout_set_text(layout, text, -1)
 						pango.cairo_save(context)
-						pango.cairo_scale(context, downscale, downscale)
+						pango.cairo_scale(context, shapescale, shapescale)
 						pango.pango_cairo_layout_path(context, layout)
 						pango.cairo_restore(context)
 						-- Initialize shape as table
 						local shape, shape_n = {}, 0
 						-- Convert path to shape
-
-						-- TODO
-
+						local path = ffi.gc(pango.cairo_copy_path(context), pango.cairo_path_destroy)
+						if(path[0].status == ffi.C.CAIRO_STATUS_SUCCESS) then
+							local i, cur_type, last_type = 0
+							while(i < path[0].num_data) do
+								cur_type = path[0].data[i].header.type
+								if cur_type == ffi.C.CAIRO_PATH_MOVE_TO then
+									if cur_type ~= last_type then
+										shape_n = shape_n + 1
+										shape[shape_n] = "m"
+									end
+									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x)
+									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y)
+									shape_n = shape_n + 2
+								elseif cur_type == ffi.C.CAIRO_PATH_LINE_TO then
+									if cur_type ~= last_type then
+										shape_n = shape_n + 1
+										shape[shape_n] = "l"
+									end
+									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x)
+									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y)
+									shape_n = shape_n + 2
+								elseif cur_type == ffi.C.CAIRO_PATH_CURVE_TO then
+									if cur_type ~= last_type then
+										shape_n = shape_n + 1
+										shape[shape_n] = "b"
+									end
+									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x)
+									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y)
+									shape[shape_n+3] = Yutils.math.round(path[0].data[i+2].point.x)
+									shape[shape_n+4] = Yutils.math.round(path[0].data[i+2].point.y)
+									shape[shape_n+5] = Yutils.math.round(path[0].data[i+3].point.x)
+									shape[shape_n+6] = Yutils.math.round(path[0].data[i+3].point.y)
+									shape_n = shape_n + 6
+								elseif cur_type == ffi.C.CAIRO_PATH_CLOSE_PATH then
+									if cur_type ~= last_type then
+										shape_n = shape_n + 1
+										shape[shape_n] = "c"
+									end
+								end
+								last_type = cur_type
+								i = i + path[0].data[i].header.length
+							end
+						end
 						pango.cairo_new_path(context)
 						return table.concat(shape, " ")
 					end
