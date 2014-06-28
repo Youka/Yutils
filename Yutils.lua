@@ -220,7 +220,7 @@ PangoAttribute* pango_attr_underline_new(PangoUnderline);
 PangoAttribute* pango_attr_strikethrough_new(gboolean);
 void pango_layout_set_attributes(PangoLayout*, PangoAttrList*);
 PangoContext* pango_layout_get_context(PangoLayout*);
-const PangoFontDescription* pango_layout_get_font_description(PangoLayout);
+const PangoFontDescription* pango_layout_get_font_description(PangoLayout*);
 PangoFontMetrics* pango_context_get_metrics(PangoContext*, const PangoFontDescription*, PangoLanguage*);
 void pango_font_metrics_unref(PangoFontMetrics*);
 int pango_font_metrics_get_ascent(PangoFontMetrics*);
@@ -1406,7 +1406,7 @@ Yutils = {
 				end)
 				-- Set font to layout
 				local font_desc = ffi.gc(pango.pango_font_description_new(), pango.pango_font_description_free)
-				pango.pango_font_description_set_family(font_desc, ffi.cast("int8_t[]", family))
+				pango.pango_font_description_set_family(font_desc, family)
 				pango.pango_font_description_set_weight(font_desc, bold and ffi.C.PANGO_WEIGHT_BOLD or ffi.C.PANGO_WEIGHT_NORMAL)
 				pango.pango_font_description_set_style(font_desc, italic and ffi.C.PANGO_STYLE_ITALIC or ffi.C.PANGO_STYLE_NORMAL)
 				pango.pango_font_description_set_absolute_size(font_desc, size * 1024 --[[PANGO_SCALE]] * upscale)
@@ -1439,7 +1439,7 @@ Yutils = {
 							error("text expected", 2)
 						end
 						-- Set text to layout
-						pango.pango_layout_set_text(layout, ffi.cast("int8_t[]", text), -1)
+						pango.pango_layout_set_text(layout, text, -1)
 						-- Get text extents with this font
 						local rect = ffi.new("PangoRectangle[1]")
 						pango.pango_layout_get_pixel_extents(layout, nil, rect)
@@ -1455,16 +1455,19 @@ Yutils = {
 							error("text expected", 2)
 						end
 						-- Set text path to layout
-						pango.pango_layout_set_text(layout, ffi.cast("int8_t[]", text), -1)
+						pango.pango_layout_set_text(layout, text, -1)
 						pango.cairo_save(context)
 						pango.cairo_scale(context, downscale, downscale)
 						pango.pango_cairo_layout_path(context, layout)
 						pango.cairo_restore(context)
+						-- Initialize shape as table
+						local shape, shape_n = {}, 0
 						-- Convert path to shape
 
 						-- TODO
 
 						pango.cairo_new_path(context)
+						return table.concat(shape, " ")
 					end
 				}
 			end
