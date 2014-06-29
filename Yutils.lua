@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 29th June 2014, 01:21 (GMT+1)
+	Version: 29th June 2014, 22:17 (GMT+1)
 	
 	Yutils
 		table
@@ -363,9 +363,9 @@ Yutils = {
 				error("string expected", 2)
 			end
 			-- Return utf8 characters iterator
-			local char_i, s_pos = 0, 1
+			local char_i, s_pos, s_len = 0, 1, #s
 			return function()
-				if s_pos > #s then
+				if s_pos > s_len then
 					return
 				else
 					char_i = char_i + 1
@@ -463,10 +463,22 @@ Yutils = {
 				-- Set matrix to identity
 				identity = function()
 					-- Set matrix to default / no transformation
-					matrix = {1, 0, 0, 0,
-								0, 1, 0, 0,
-								0, 0, 1, 0,
-								0, 0, 0, 1}
+					matrix[1] = 1
+					matrix[2] = 0
+					matrix[3] = 0
+					matrix[4] = 0
+					matrix[5] = 0
+					matrix[6] = 1
+					matrix[7] = 0
+					matrix[8] = 0
+					matrix[9] = 0
+					matrix[10] = 0
+					matrix[11] = 1
+					matrix[12] = 0
+					matrix[13] = 0
+					matrix[14] = 0
+					matrix[15] = 0
+					matrix[16] = 1
 					-- Return this object
 					return obj
 				end,
@@ -616,8 +628,7 @@ Yutils = {
 				error("minimal, maximal and step number expected", 2)
 			end
 			-- Generate random number
-			local r = min + math.random(0, math.ceil((max - min) / step)) * step
-			return r > max and max or r
+			return math.min(min + math.random(0, math.ceil((max - min) / step)) * step, max)
 		end,
 		-- Rounds number
 		round = function(x)
@@ -713,19 +724,20 @@ Yutils = {
 				-- Pack curve vectors
 				local vecs = {{x1 - x0, y1 - y0}, {x2 - x1, y2 - y1}, {x3 - x2, y3 - y2}}
 				-- Remove zero length vectors
-				local i = 1
-				while i <= #vecs do
+				local i, n = 1, #vecs
+				while i <= n do
 					if vecs[i][1] == 0 and vecs[i][2] == 0 then
 						table.remove(vecs, i)
+						n = n - 1
 					else
 						i = i + 1
 					end
 				end
 				-- Check flatness on remaining vectors
-				if #vecs < 2 then
+				if n < 2 then
 					return true
 				else
-					for i=1, #vecs-1 do
+					for i=1, n-1 do
 						if math.abs(Yutils.math.degree(vecs[i][1], vecs[i][2], 0, vecs[i+1][1], vecs[i+1][2], 0)) > tolerance then
 							return false
 						end
@@ -1172,9 +1184,8 @@ Yutils = {
 			end
 			-- Convert little-endian bytes string to Lua number
 			local function bton(s)
-				local bytes = {s:byte(1,#s)}
-				local n, bytes_n = 0, #bytes
-				for i = 0, bytes_n-1 do
+				local bytes, n = {s:byte(1,#s)}, 0
+				for i = 0, #bytes-1 do
 					n = n + bytes[1+i] * 2^(i*8)
 				end
 				return n
@@ -1246,7 +1257,8 @@ Yutils = {
 			-- Calculate row size (round up to multiple of 4)
 			local row_size = math.floor((24 * width + 31) / 32) * 4
 			-- Return bitmap object
-			local obj = {
+			local obj
+			obj = {
 				get_file_size = function()
 					return file_size
 				end,
@@ -1286,25 +1298,25 @@ Yutils = {
 						end
 					end
 					return data_packed
+				end,
+				get_data_text = function()
+					local data_pack, text, text_n, cur_x, off_x, off_y, shape = obj.get_data_packed(), {"{\\bord0\\shad0\\an7\\p1}"}, 1, 0, 0, 0, "m 0 0 l 1 0 1 1 0 1"
+					for i=1, #data_pack do
+						if cur_x == width then
+							cur_x = 1
+							off_x = off_x - width
+							off_y = off_y + 1
+							shape = string.format("m %d %d l %d %d  %d %d  %d %d", off_x, off_y, off_x+1, off_y, off_x+1, off_y+1, off_x, off_y+1)
+						else
+							cur_x = cur_x + 1
+						end
+						text_n = text_n + 1
+						text[text_n] = string.format("{\\c&H%02X%02X%02X&}%s",
+																data_pack[i].b, data_pack[i].g, data_pack[i].r, shape)
+					end
+					return table.concat(text)
 				end
 			}
-			obj.get_data_text = function()
-				local data_pack, text, text_n, cur_x, off_x, off_y, shape = obj.get_data_packed(), {"{\\bord0\\shad0\\an7\\p1}"}, 1, 0, 0, 0, "m 0 0 l 1 0 1 1 0 1"
-				for i=1, #data_pack do
-					if cur_x == width then
-						cur_x = 1
-						off_x = off_x - width
-						off_y = off_y + 1
-						shape = string.format("m %d %d l %d %d  %d %d  %d %d", off_x, off_y, off_x+1, off_y, off_x+1, off_y+1, off_x, off_y+1)
-					else
-						cur_x = cur_x + 1
-					end
-					text_n = text_n + 1
-					text[text_n] = string.format("{\\c&H%02X%02X%02X&}%s",
-															data_pack[i].b, data_pack[i].g, data_pack[i].r, shape)
-				end
-				return table.concat(text)
-			end
 			return obj
 		end,
 		-- Creates font
@@ -1321,16 +1333,12 @@ Yutils = {
 			if ffi.os == "Windows" then
 				-- Lua string in utf-8 to C string in utf-16
 				local function utf8_to_utf16(s)
-					-- Get string length
-					local len = #s
-					-- Get resulting utf16 characters number
-					local wlen = ffi.C.MultiByteToWideChar(65001, 0, s, len, nil, 0)	-- 65001 = CP_UTF8
+					-- Get resulting utf16 characters number (+ null-termination)
+					local wlen = ffi.C.MultiByteToWideChar(65001, 0, s, -1, nil, 0)	-- 65001 = CP_UTF8
 					-- Allocate array for utf16 characters storage
-					local ws = ffi.new("wchar_t[?]", wlen+1)
+					local ws = ffi.new("wchar_t[?]", wlen)
 					-- Convert utf8 string to utf16 characters
-					ffi.C.MultiByteToWideChar(65001, 0, s, len, ws, wlen)
-					-- Set null-termination to utf16 storage
-					ws[wlen] = 0
+					ffi.C.MultiByteToWideChar(65001, 0, s, -1, ws, wlen)
 					-- Return utf16 C string
 					return ws
 				end
@@ -1411,8 +1419,12 @@ Yutils = {
 						local shape, shape_n = {}, 0
 						-- Add path to device context
 						text = utf8_to_utf16(text)
+						local text_len = ffi.C.wcslen(text)
+						if text_len > 8192 then
+							error("text too long", 2)
+						end
 						ffi.C.BeginPath(dc)
-						ffi.C.ExtTextOutW(dc, 0, 0, 0, nil, text, ffi.C.wcslen(text), nil)
+						ffi.C.ExtTextOutW(dc, 0, 0, 0, nil, text, text_len, nil)
 						ffi.C.EndPath(dc)
 						-- Get path data
 						local points_n = ffi.C.GetPath(dc, nil, nil, 0)
