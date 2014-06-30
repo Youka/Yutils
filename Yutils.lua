@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 30th June 2014, 22:53 (GMT+1)
+	Version: 30th June 2014, 23:15 (GMT+1)
 	
 	Yutils
 		table
@@ -1233,8 +1233,12 @@ Yutils = {
 				error("planes must be 1", 2)
 			end
 			local bit_depth = file:read(2)
-			if not bit_depth or bton(bit_depth) ~= 24 then
-				error("bit depth must be 24", 2)
+			if not bit_depth then
+				error("bit depth not found", 2)
+			end
+			bit_depth = bton(bit_depth)
+			if bit_depth ~= 24 and bit_depth ~= 32 then
+				error("bit depth must be 24 or 32", 2)
 			end
 			local compression = file:read(4)
 			if not compression or bton(compression) ~= 0 then
@@ -1255,7 +1259,7 @@ Yutils = {
 				error("not enough data", 2)
 			end
 			-- Calculate row size (round up to multiple of 4)
-			local row_size = math.floor((24 * width + 31) / 32) * 4
+			local row_size = math.floor((bit_depth * width + 31) / 32) * 4
 			-- Return bitmap object
 			local obj
 			obj = {
@@ -1278,23 +1282,42 @@ Yutils = {
 					return data
 				end,
 				get_data_packed = function()
-					local data_packed, data_packed_n, last_row_item, r, g, b = {}, 0, (width-1)*3
+					local data_packed, data_packed_n = {}, 0
 					local first_row, last_row, row_step
 					if height < 0 then
-						first_row, last_row, row_step = 0, math.abs(height)-1, 1
+						first_row, last_row, row_step = 0, -height-1, 1
 					else
 						first_row, last_row, row_step = height-1, 0, -1
 					end
-					for y=first_row, last_row, row_step do
-						y = 1 + y * row_size
-						for x=0, last_row_item, 3 do
-							b, g, r = data:byte(y+x, y+x+2)
-							data_packed_n = data_packed_n + 1
-							data_packed[data_packed_n] = {
-								r = r,
-								g = g,
-								b = b
-							}
+					if bit_depth == 24 then
+						local last_row_item, r, g, b = (width-1)*3
+						for y=first_row, last_row, row_step do
+							y = 1 + y * row_size
+							for x=0, last_row_item, 3 do
+								b, g, r = data:byte(y+x, y+x+2)
+								data_packed_n = data_packed_n + 1
+								data_packed[data_packed_n] = {
+									r = r,
+									g = g,
+									b = b,
+									a = 255
+								}
+							end
+						end
+					else	-- bit_depth == 32
+						local last_row_item, r, g, b, a = (width-1)*4
+						for y=first_row, last_row, row_step do
+							y = 1 + y * row_size
+							for x=0, last_row_item, 4 do
+								b, g, r, a = data:byte(y+x, y+x+3)
+								data_packed_n = data_packed_n + 1
+								data_packed[data_packed_n] = {
+									r = r,
+									g = g,
+									b = b,
+									a = a
+								}
+							end
 						end
 					end
 					return data_packed
@@ -1311,8 +1334,8 @@ Yutils = {
 							cur_x = cur_x + 1
 						end
 						text_n = text_n + 1
-						text[text_n] = string.format("{\\c&H%02X%02X%02X&}%s",
-																data_pack[i].b, data_pack[i].g, data_pack[i].r, shape)
+						text[text_n] = string.format("{\\c&H%02X%02X%02X&\\1a&H%02X&}%s",
+																data_pack[i].b, data_pack[i].g, data_pack[i].r, 255-data_pack[i].a, shape)
 					end
 					return table.concat(text)
 				end
