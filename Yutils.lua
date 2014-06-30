@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 29th June 2014, 22:17 (GMT+1)
+	Version: 30th June 2014, 22:53 (GMT+1)
 	
 	Yutils
 		table
@@ -1218,7 +1218,7 @@ Yutils = {
 			end
 			width = bton(width)
 			if width >= 2^31 then
-				width = width - 2^32
+				error("pixels in right-to-left order not supported", 2)
 			end
 			local height = file:read(4)
 			if not height then
@@ -1281,7 +1281,7 @@ Yutils = {
 					local data_packed, data_packed_n, last_row_item, r, g, b = {}, 0, (width-1)*3
 					local first_row, last_row, row_step
 					if height < 0 then
-						first_row, last_row, row_step = 0, height-1, 1
+						first_row, last_row, row_step = 0, math.abs(height)-1, 1
 					else
 						first_row, last_row, row_step = height-1, 0, -1
 					end
