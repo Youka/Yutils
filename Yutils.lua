@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 1st July 2014, 05:31 (GMT+1)
+	Version: 1st July 2014, 10:02 (GMT+1)
 	
 	Yutils
 		table
@@ -61,6 +61,7 @@
 				get_file_size() -> number
 				get_width() -> number
 				get_height() -> number
+				get_bit_depth() -> number
 				get_data_size() -> number
 				get_row_size() -> number
 				get_data_raw() -> string
@@ -1257,6 +1258,9 @@ Yutils = {
 				end,
 				get_height = function()
 					return height
+				end,
+				get_bit_depth = function()
+					return bit_depth
 				end,
 				get_data_size = function()
 					return data_size
