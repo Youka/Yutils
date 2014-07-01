@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 30th June 2014, 23:15 (GMT+1)
+	Version: 1st July 2014, 05:01 (GMT+1)
 	
 	Yutils
 		table
@@ -890,58 +890,45 @@ Yutils = {
 				error("shape and line width expected", 2)
 			end
 			-- Collect figures
-			local figures, figures_n = {}, 0
-			local figure, figure_n = {}, 0
+			local figures, figures_n, figure, figure_n = {}, 0, {}, 0
+			local last_move
 			for typ, x, y in shape:gmatch("(%a?)%s*(%-?%d+)%s+(%-?%d+)") do
 				-- Check point type
 				if typ ~= "m" and typ ~= "l" and typ ~= "" then
 					error("shape have to contain only \"moves\" and \"lines\"", 2)
 				end
-				-- Last figure finished?
-				if typ == "m" and figure_n ~= 0 then
-					-- Enough figure points?
-					if figure_n < 3 then
-						error("every figure must have more than 2 points", 2)
+				-- New figure?
+				if not last_move or typ == "m" then
+					-- Enough points in figure?
+					if figure_n > 2 then
+						-- Last point equal to first point? (yes: remove him)
+						if last_move and figure[figure_n][1] == last_move[1] and figure[figure_n][2] == last_move[2] then
+							figure[figure_n] = nil
+						end
+						-- Save figure
+						figures_n = figures_n + 1
+						figures[figures_n] = figure
 					end
-					-- Save figure
-					figures_n = figures_n + 1
-					figures[figures_n] = figure
-					figure = {}
-					figure_n = 0
+					-- Clear figure for new one
+					figure, figure_n = {}, 0
+					-- Save last move for figure closing check
+					last_move = {x, y}
 				end
-				-- Add point to current figure
-				figure_n = figure_n + 1
-				figure[figure_n] = {x, y}
+				-- Add point to current figure (if not copy of last)
+				if figure_n == 0 or not(figure[figure_n][1] == x and figure[figure_n][2] == y) then
+					figure_n = figure_n + 1
+					figure[figure_n] = {x, y}
+				end
 			end
-			-- Insert last figure
-			if figure_n ~= 0 then
-				-- Enough figure points?
-				if figure_n < 3 then
-					error("every figure must have more than 2 points", 2)
+			-- Insert last figure (with enough points)
+			if figure_n > 2 then
+				-- Last point equal to first point? (yes: remove him)
+				if last_move and figure[figure_n][1] == last_move[1] and figure[figure_n][2] == last_move[2] then
+					figure[figure_n] = nil
 				end
 				-- Save figure
 				figures_n = figures_n + 1
 				figures[figures_n] = figure
-				figure = {}
-				figure_n = 0
-			end
-			-- Remove double points (recreate figures)
-			for fi = 1, figures_n do
-				local old_figure, old_figure_n = figures[fi], #figures[fi]
-				local new_figure, new_figure_n = {}, 0
-				for pi, point in ipairs(old_figure) do
-					local pre_point
-					if pi == 1 then
-						pre_point = old_figure[old_figure_n]
-					else
-						pre_point = old_figure[pi-1]
-					end
-					if not (point[1] == pre_point[1] and point[2] == pre_point[2]) then
-						new_figure_n = new_figure_n + 1
-						new_figure[new_figure_n] = point
-					end
-				end
-				figures[fi] = new_figure
 			end
 			-- Vector sizer
 			local function vec_sizer(x, y, size)
@@ -958,12 +945,9 @@ Yutils = {
 				return math.cos(ra)*x - math.sin(ra)*y,
 						math.sin(ra)*x + math.cos(ra)*y
 			end
-			-- Stroke figures
-			local stroke_figures = {{}, {}}	-- inner + outer
-			local stroke_subfigures_i = 0
-			-- Through figures
+			-- Create stroke shape out of figures
+			local stroke_shape, stroke_shape_n = {}, 0
 			for fi, figure in ipairs(figures) do
-				stroke_subfigures_i = stroke_subfigures_i + 1
 				-- One pass for inner, one for outer outline
 				for i = 1, 2 do
 					-- Outline buffer
@@ -1013,7 +997,9 @@ Yutils = {
 						local circ = math.abs(math.rad(degree)) * width
 						-- Add first edge point
 						outline_n = outline_n + 1
-						outline[outline_n] = {Yutils.math.round(point[1] + o_vec1_x), Yutils.math.round(point[2] + o_vec1_y)}
+						outline[outline_n] = string.format("%s%d %d",
+																	outline_n == 1 and "m " or outline_n == 2 and "l " or "",
+																	Yutils.math.round(point[1] + o_vec1_x), Yutils.math.round(point[2] + o_vec1_y))
 						-- Round edge needed?
 						local max_circ = 2
 						if circ > max_circ then
@@ -1021,33 +1007,16 @@ Yutils = {
 							for cur_circ = circ_rest > 0 and circ_rest or max_circ, circ, max_circ do
 								local curve_vec_x, curve_vec_y = rotate(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
 								outline_n = outline_n + 1
-								outline[outline_n] = {Yutils.math.round(point[1] + curve_vec_x), Yutils.math.round(point[2] + curve_vec_y)}
+								outline[outline_n] = string.format("%s%d %d",
+																			outline_n == 1 and "m " or outline_n == 2 and "l " or "",
+																			Yutils.math.round(point[1] + curve_vec_x), Yutils.math.round(point[2] + curve_vec_y))
 							end
 						end
 					end
-					-- Insert inner or outer outline
-					stroke_figures[i][stroke_subfigures_i] = outline
-				end
-			end
-			-- Convert stroke figures to shape
-			local stroke_shape, stroke_shape_n = {}, 0
-			for fi = 1, figures_n do
-				-- Closed inner outline to shape
-				local inner_outline = stroke_figures[1][fi]
-				for pi, point in ipairs(inner_outline) do
+					-- Insert inner or outer outline to stroke shape
 					stroke_shape_n = stroke_shape_n + 1
-					stroke_shape[stroke_shape_n] = string.format("%s%d %d", pi == 1 and "m " or pi == 2 and "l " or "", point[1], point[2])
+					stroke_shape[stroke_shape_n] = table.concat(outline, " ")
 				end
-				stroke_shape_n = stroke_shape_n + 1
-				stroke_shape[stroke_shape_n] = string.format("%d %d", inner_outline[1][1], inner_outline[1][2])
-				-- Closed outer outline to shape
-				local outer_outline = stroke_figures[2][fi]
-				for pi, point in ipairs(outer_outline) do
-					stroke_shape_n = stroke_shape_n + 1
-					stroke_shape[stroke_shape_n] = string.format("%s%d %d", pi == 1 and "m " or pi == 2 and "l " or "", point[1], point[2])
-				end
-				stroke_shape_n = stroke_shape_n + 1
-				stroke_shape[stroke_shape_n] = string.format("%d %d", outer_outline[1][1], outer_outline[1][2])
 			end
 			return table.concat(stroke_shape, " ")
 		end,
