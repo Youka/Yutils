@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 1st July 2014, 05:01 (GMT+1)
+	Version: 1st July 2014, 05:31 (GMT+1)
 	
 	Yutils
 		table
@@ -55,6 +55,7 @@
 			split(shape, max_len) -> string
 			to_outline(shape, width) -> string
 			to_pixels(shape) -> table
+			transform(shape, matrix) -> string
 		decode
 			create_bmp_reader(filename) -> table
 				get_file_size() -> number
@@ -1141,6 +1142,22 @@ Yutils = {
 				end
 			end
 			return pixels
+		end,
+		-- Apply matrix to shape coordinates
+		transform = function(shape, matrix)
+			-- Check arguments
+			if type(shape) ~= "string" or type(matrix) ~= "table" or type(matrix.transform) ~= "function" then
+				error("shape and matrix expected", 2)
+			end
+			local success, x, y, z, w = pcall(matrix.transform, 1, 1, 1)
+			if not success or type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" or type(w) ~= "number" then
+				error("matrix transform method invalid", 2)
+			end
+			-- Filter shape with matrix
+			return Yutils.shape.filter(shape, function(cx, cy)
+				x, y, z, w = matrix.transform(cx, cy, 0)
+				return x / w, y / w
+			end)
 		end
 	},
 	-- Decoder sublibrary
