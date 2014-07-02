@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 1st July 2014, 10:02 (GMT+1)
+	Version: 2nd July 2014, 05:50 (GMT+1)
 	
 	Yutils
 		table
@@ -39,8 +39,8 @@
 				translate(x, y, z) -> table
 				scale(x, y, z) -> table
 				rotate(axis, angle) -> table
-				transform(x, y, z, w) -> number, number, number, number
-			distance(x, y, z) -> number
+				transform(x, y, z[, w]) -> number, number, number, number
+			distance(x, y[, z]) -> number
 			degree(x1, y1, z1, x2, y2, z2) -> number
 			ortho(x1, y1, z1, x2, y2, z2) -> number, number, number
 			randomsteps(min, max, step) -> number
@@ -67,7 +67,7 @@
 				get_data_raw() -> string
 				get_data_packed() -> table
 				get_data_text() -> string
-			create_font(font, bold, italic, underline, strikeout, size) -> table
+			create_font(font, bold, italic, underline, strikeout, size[, xscale, yscale, hspace]) -> table
 				metrics() -> table
 				text_extents(text) -> table
 				text_to_shape(text) -> string
@@ -75,9 +75,11 @@
 
 -- Load FFI interface
 local ffi = require("ffi")
--- Check OS
-local pango
+-- Check OS & load fitting complex scripting library
+local script_lib
 if ffi.os == "Windows" then
+	-- Load uniscribe library
+	script_lib = ffi.load("Usp10.dll")
 	-- Set C definitions for WinAPI
 	ffi.cdef([[
 typedef unsigned int UINT;
@@ -133,6 +135,7 @@ typedef struct{
 	LONG y;
 }POINT, *LPPOINT;
 typedef BYTE* PBYTE;
+typedef LONG HRESULT;
 
 int MultiByteToWideChar(UINT, DWORD, LPCSTR, int, LPWSTR, int);
 HDC CreateCompatibleDC(HDC);
@@ -150,10 +153,11 @@ BOOL ExtTextOutW(HDC, int, int, UINT, LPCRECT, LPCWSTR, UINT, const INT*);
 BOOL EndPath(HDC);
 int GetPath(HDC, LPPOINT, PBYTE, int);
 BOOL AbortPath(HDC);
+HRESULT ScriptIsComplex(const WCHAR*, int, DWORD);
 	]])
 else	-- Unix
 	-- Load pangocairo library
-	pango = ffi.load("libpangocairo-1.0.so")
+	script_lib = ffi.load("libpangocairo-1.0.so")
 	-- Set C definitions for Pangocairo
 	ffi.cdef([[
 typedef enum{
@@ -1333,10 +1337,21 @@ Yutils = {
 			return obj
 		end,
 		-- Creates font
-		create_font = function(family, bold, italic, underline, strikeout, size)
+		create_font = function(family, bold, italic, underline, strikeout, size, xscale, yscale, hspace)
 			-- Check arguments
-			if type(family) ~= "string" or type(bold) ~= "boolean" or type(italic) ~= "boolean" or type(underline) ~= "boolean" or type(strikeout) ~= "boolean" or type(size) ~= "number" or size <= 0 then
-				error("expected family, bold, italic, underline, strikeout and size", 2)
+			if type(family) ~= "string" or type(bold) ~= "boolean" or type(italic) ~= "boolean" or type(underline) ~= "boolean" or type(strikeout) ~= "boolean" or type(size) ~= "number" or size <= 0 or
+				(xscale ~= nil and type(xscale) ~= "number") or (yscale ~= nil and type(yscale) ~= "number") or (hspace ~= nil and type(hspace) ~= "number") then
+				error("expected family, bold, italic, underline, strikeout, size and optional horizontal & vertical scale and intercharacter space", 2)
+			end
+			-- Set optional arguments (if not already)
+			if not xscale then
+				xscale = 1
+			end
+			if not yscale then
+				yscale = 1
+			end
+			if not hspace then
+				hspace = 0
 			end
 			-- Font scale values for increased size & later downscaling to produce floating point coordinates
 			local upscale = 64
@@ -1400,11 +1415,11 @@ Yutils = {
 						local metrics = ffi.new("TEXTMETRICW[1]")
 						ffi.C.GetTextMetricsW(dc, metrics)
 						return {
-							height = metrics[0].tmHeight * downscale,
-							ascent = metrics[0].tmAscent * downscale,
-							descent = metrics[0].tmDescent * downscale,
-							internal_leading = metrics[0].tmInternalLeading * downscale,
-							external_leading = metrics[0].tmExternalLeading * downscale
+							height = metrics[0].tmHeight * downscale * yscale,
+							ascent = metrics[0].tmAscent * downscale * yscale,
+							descent = metrics[0].tmDescent * downscale * yscale,
+							internal_leading = metrics[0].tmInternalLeading * downscale * yscale,
+							external_leading = metrics[0].tmExternalLeading * downscale * yscale
 						}
 					end,
 					-- Get text extents
@@ -1413,14 +1428,23 @@ Yutils = {
 						if type(text) ~= "string" then
 							error("text expected", 2)
 						end
-						-- Get text extents with this font
+						-- Get utf16 text
 						text = utf8_to_utf16(text)
-						local size = ffi.new("SIZE[1]")
-						ffi.C.GetTextExtentPoint32W(dc, text, ffi.C.wcslen(text), size)
-						return {
-							width = size[0].cx * downscale,
-							height = size[0].cy * downscale
-						}
+						local text_len = ffi.C.wcslen(text)
+						-- Complex script?
+						if false then	--script_lib.ScriptIsComplex(text, text_len, 1 --[[SIC_COMPLEX]]) == 0 --[[S_OK]] then
+						
+							-- TODO: complex scripting
+						
+						else
+							-- Get text extents with this font
+							local size = ffi.new("SIZE[1]")
+							ffi.C.GetTextExtentPoint32W(dc, text, text_len, size)
+							return {
+								width = (size[0].cx * downscale + hspace * text_len) * xscale,
+								height = size[0].cy * downscale * yscale
+							}
+						end
 					end,
 					-- Converts text to ASS shape
 					text_to_shape = function(text)
@@ -1430,15 +1454,26 @@ Yutils = {
 						end
 						-- Initialize shape as table
 						local shape, shape_n = {}, 0
-						-- Add path to device context
+						-- Get utf16 text
 						text = utf8_to_utf16(text)
 						local text_len = ffi.C.wcslen(text)
-						if text_len > 8192 then
-							error("text too long", 2)
+						-- Complex script?
+						if false then	--script_lib.ScriptIsComplex(text, text_len, 1) == 0 then
+						
+							-- TODO: complex scripting
+						
+						else
+						
+							-- TODO: optional arguments (scale & spacing)
+						
+							-- Add path to device context
+							if text_len > 8192 then
+								error("text too long", 2)
+							end
+							ffi.C.BeginPath(dc)
+							ffi.C.ExtTextOutW(dc, 0, 0, 0, nil, text, text_len, nil)
+							ffi.C.EndPath(dc)
 						end
-						ffi.C.BeginPath(dc)
-						ffi.C.ExtTextOutW(dc, 0, 0, 0, nil, text, text_len, nil)
-						ffi.C.EndPath(dc)
 						-- Get path data
 						local points_n = ffi.C.GetPath(dc, nil, nil, 0)
 						if points_n > 0 then
@@ -1454,8 +1489,8 @@ Yutils = {
 										shape[shape_n] = "m"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
-									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale * xscale)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale * yscale)
 									shape_n = shape_n + 2
 									i = i + 1
 								elseif cur_type == 2 or cur_type == 3 then	-- 2 = PT_LINETO, 3 = PT_LINETO|PT_CLOSEFIGURE
@@ -1464,8 +1499,8 @@ Yutils = {
 										shape[shape_n] = "l"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
-									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale * xscale)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale * yscale)
 									shape_n = shape_n + 2
 									i = i + 1
 								elseif cur_type == 4 or cur_type == 5 then	-- 4 = PT_BEZIERTO, 5 = PT_BEZIERTO|PT_CLOSEFIGURE
@@ -1474,12 +1509,12 @@ Yutils = {
 										shape[shape_n] = "b"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale)
-									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale)
-									shape[shape_n+3] = Yutils.math.round(points[i+1].x * shapescale)
-									shape[shape_n+4] = Yutils.math.round(points[i+1].y * shapescale)
-									shape[shape_n+5] = Yutils.math.round(points[i+2].x * shapescale)
-									shape[shape_n+6] = Yutils.math.round(points[i+2].y * shapescale)
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale * xscale)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale * yscale)
+									shape[shape_n+3] = Yutils.math.round(points[i+1].x * shapescale * xscale)
+									shape[shape_n+4] = Yutils.math.round(points[i+1].y * shapescale * yscale)
+									shape[shape_n+5] = Yutils.math.round(points[i+2].x * shapescale * xscale)
+									shape[shape_n+6] = Yutils.math.round(points[i+2].y * shapescale * yscale)
 									shape_n = shape_n + 6
 									i = i + 3
 								else	-- invalid type (should never happen, but let us be safe)
@@ -1499,40 +1534,40 @@ Yutils = {
 				}
 			else	-- Unix
 				-- Create surface, context & layout
-				local surface = pango.cairo_image_surface_create(ffi.C.CAIRO_FORMAT_A8, 1, 1)
-				local context = pango.cairo_create(surface)
+				local surface = script_lib.cairo_image_surface_create(ffi.C.CAIRO_FORMAT_A8, 1, 1)
+				local context = script_lib.cairo_create(surface)
 				local layout
-				layout = ffi.gc(pango.pango_cairo_create_layout(context), function()
-					pango.g_object_unref(layout)
-					pango.cairo_destroy(context)
-					pango.cairo_surface_destroy(surface)
+				layout = ffi.gc(script_lib.pango_cairo_create_layout(context), function()
+					script_lib.g_object_unref(layout)
+					script_lib.cairo_destroy(context)
+					script_lib.cairo_surface_destroy(surface)
 				end)
 				-- Set font to layout
-				local font_desc = ffi.gc(pango.pango_font_description_new(), pango.pango_font_description_free)
-				pango.pango_font_description_set_family(font_desc, family)
-				pango.pango_font_description_set_weight(font_desc, bold and ffi.C.PANGO_WEIGHT_BOLD or ffi.C.PANGO_WEIGHT_NORMAL)
-				pango.pango_font_description_set_style(font_desc, italic and ffi.C.PANGO_STYLE_ITALIC or ffi.C.PANGO_STYLE_NORMAL)
-				pango.pango_font_description_set_absolute_size(font_desc, size * 1024 --[[PANGO_SCALE]] * upscale)
-				pango.pango_layout_set_font_description(layout, font_desc)
-				local attr = ffi.gc(pango.pango_attr_list_new(), pango.pango_attr_list_unref)
-				pango.pango_attr_list_insert(attr, pango.pango_attr_underline_new(underline and ffi.C.PANGO_UNDERLINE_SINGLE or ffi.C.PANGO_UNDERLINE_NONE))
-				pango.pango_attr_list_insert(attr, pango.pango_attr_strikethrough_new(strikeout))
-				pango.pango_layout_set_attributes(layout, attr)
+				local font_desc = ffi.gc(script_lib.pango_font_description_new(), script_lib.pango_font_description_free)
+				script_lib.pango_font_description_set_family(font_desc, family)
+				script_lib.pango_font_description_set_weight(font_desc, bold and ffi.C.PANGO_WEIGHT_BOLD or ffi.C.PANGO_WEIGHT_NORMAL)
+				script_lib.pango_font_description_set_style(font_desc, italic and ffi.C.PANGO_STYLE_ITALIC or ffi.C.PANGO_STYLE_NORMAL)
+				script_lib.pango_font_description_set_absolute_size(font_desc, size * 1024 --[[PANGO_SCALE]] * upscale)
+				script_lib.pango_layout_set_font_description(layout, font_desc)
+				local attr = ffi.gc(script_lib.pango_attr_list_new(), script_lib.pango_attr_list_unref)
+				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_underline_new(underline and ffi.C.PANGO_UNDERLINE_SINGLE or ffi.C.PANGO_UNDERLINE_NONE))
+				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_strikethrough_new(strikeout))
+				script_lib.pango_layout_set_attributes(layout, attr)
 				-- Return font object
 				return {
 					-- Get font metrics
 					metrics = function()
-						local context = pango.pango_layout_get_context(layout)
-						local font_desc = pango.pango_layout_get_font_description(layout)
-						local metrics = ffi.gc(pango.pango_context_get_metrics(context, font_desc, nil), pango.pango_font_metrics_unref)
-						local ascent, descent = pango.pango_font_metrics_get_ascent(metrics) / 1024 * downscale,
-												pango.pango_font_metrics_get_descent(metrics) / 1024 * downscale
+						local context = script_lib.pango_layout_get_context(layout)
+						local font_desc = script_lib.pango_layout_get_font_description(layout)
+						local metrics = ffi.gc(script_lib.pango_context_get_metrics(context, font_desc, nil), script_lib.pango_font_metrics_unref)
+						local ascent, descent = script_lib.pango_font_metrics_get_ascent(metrics) / 1024 * downscale,
+												script_lib.pango_font_metrics_get_descent(metrics) / 1024 * downscale
 						return {
-							height = ascent + descent,
-							ascent = ascent,
-							descent = descent,
+							height = (ascent + descent) * yscale,
+							ascent = ascent * yscale,
+							descent = descent * yscale,
 							internal_leading = 0,
-							external_leading = pango.pango_layout_get_spacing(layout) / 1024 * downscale
+							external_leading = script_lib.pango_layout_get_spacing(layout) / 1024 * downscale * yscale
 						}
 					end,
 					-- Get text extents
@@ -1542,13 +1577,13 @@ Yutils = {
 							error("text expected", 2)
 						end
 						-- Set text to layout
-						pango.pango_layout_set_text(layout, text, -1)
+						script_lib.pango_layout_set_text(layout, text, -1)
 						-- Get text extents with this font
 						local rect = ffi.new("PangoRectangle[1]")
-						pango.pango_layout_get_pixel_extents(layout, nil, rect)
+						script_lib.pango_layout_get_pixel_extents(layout, nil, rect)
 						return {
-							width = rect[0].width * downscale,
-							height = rect[0].height * downscale
+							width = (rect[0].width * downscale + hspace * Yutils.utf8.len(text)) * xscale,
+							height = rect[0].height * downscale * yscale
 						}
 					end,
 					-- Converts text to ASS shape
@@ -1557,16 +1592,19 @@ Yutils = {
 						if type(text) ~= "string" then
 							error("text expected", 2)
 						end
+						
+						-- TODO: complex scripting & optional spacing
+						
 						-- Set text path to layout
-						pango.pango_layout_set_text(layout, text, -1)
-						pango.cairo_save(context)
-						pango.cairo_scale(context, shapescale, shapescale)
-						pango.pango_cairo_layout_path(context, layout)
-						pango.cairo_restore(context)
+						script_lib.pango_layout_set_text(layout, text, -1)
+						script_lib.cairo_save(context)
+						script_lib.cairo_scale(context, shapescale * xscale, shapescale * yscale)
+						script_lib.pango_cairo_layout_path(context, layout)
+						script_lib.cairo_restore(context)
 						-- Initialize shape as table
 						local shape, shape_n = {}, 0
 						-- Convert path to shape
-						local path = ffi.gc(pango.cairo_copy_path(context), pango.cairo_path_destroy)
+						local path = ffi.gc(script_lib.cairo_copy_path(context), script_lib.cairo_path_destroy)
 						if(path[0].status == ffi.C.CAIRO_STATUS_SUCCESS) then
 							local i, cur_type, last_type = 0
 							while(i < path[0].num_data) do
@@ -1609,7 +1647,7 @@ Yutils = {
 								i = i + path[0].data[i].header.length
 							end
 						end
-						pango.cairo_new_path(context)
+						script_lib.cairo_new_path(context)
 						return table.concat(shape, " ")
 					end
 				}
