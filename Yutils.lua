@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 2nd July 2014, 05:50 (GMT+1)
+	Version: 4th July 2014, 13:05 (GMT+1)
 	
 	Yutils
 		table
@@ -47,6 +47,7 @@
 			round(x) -> number
 		algorithm
 			frames(starts, ends, dur) -> function
+			lines(text) -> function
 		shape
 			bounding(shape) -> number, number, number, number
 			filter(shape, filter) -> string
@@ -672,6 +673,43 @@ Yutils = {
 					return ret_starts, ret_ends, i, n
 				end
 			end
+		end,
+		-- Creates iterator through text lines
+		lines = function(text)
+			-- Check argument
+			if type(text) ~= "string" then
+				error("string expected", 2)
+			end
+			-- Return iterator
+			return function()
+				-- Still text left?
+				if text then
+					-- Find possible line endings
+					local cr = text:find("\r", 1, true)
+					local lf = text:find("\n", 1, true)
+					-- Find earliest line ending
+					local text_end, next_step = #text, 0
+					if lf then
+						text_end, next_step = lf-1, 2
+					end
+					if cr then
+						if not lf or cr < lf-1 then
+							text_end, next_step = cr-1, 2
+						elseif cr == lf-1 then
+							text_end, next_step = cr-1, 3
+						end
+					end
+					-- Cut line out & update text
+					local line = text:sub(1, text_end)
+					if next_step == 0 then
+						text = nil
+					else
+						text = text:sub(text_end+next_step)
+					end
+					-- Return current line
+					return line
+				end
+			end
 		end
 	},
 	-- Shape sublibrary
@@ -1095,7 +1133,7 @@ Yutils = {
 						local cx = line_x_hline(line[1], line[2], line[3], line[4], y + 0.5)
 						if cx then
 							row_stops_n = row_stops_n + 1
-							row_stops[row_stops_n] = {num_trim(Yutils.math.round(cx), 0, width), line[4] > 0 and 1 or -1}	-- image trimmed stop position & line vertical direction
+							row_stops[row_stops_n] = {num_trim(cx, 0, width), line[4] > 0 and 1 or -1}	-- image trimmed stop position & line vertical direction
 						end
 					end
 					-- Enough intersections / something to render?
@@ -1109,7 +1147,7 @@ Yutils = {
 						for i = 1, row_stops_n-1 do
 							status = status + row_stops[i][2]
 							if status ~= 0 then
-								for x=row_stops[i][1], row_stops[i+1][1]-1 do
+								for x=math.ceil(row_stops[i][1]-0.5), math.floor(row_stops[i+1][1]+0.5)-1 do
 									image[row_index + x] = true
 								end
 							end
