@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 4th July 2014, 13:05 (GMT+1)
+	Version: 4th July 2014, 20:25 (GMT+1)
 	
 	Yutils
 		table
@@ -137,6 +137,10 @@ typedef struct{
 }POINT, *LPPOINT;
 typedef BYTE* PBYTE;
 typedef LONG HRESULT;
+typedef void SCRIPT_CONTROL;
+typedef void SCRIPT_STATE;
+typedef void SCRIPT_TABDEF;
+typedef void* SCRIPT_STRING_ANALYSIS;
 
 int MultiByteToWideChar(UINT, DWORD, LPCSTR, int, LPWSTR, int);
 HDC CreateCompatibleDC(HDC);
@@ -155,6 +159,9 @@ BOOL EndPath(HDC);
 int GetPath(HDC, LPPOINT, PBYTE, int);
 BOOL AbortPath(HDC);
 HRESULT ScriptIsComplex(const WCHAR*, int, DWORD);
+HRESULT ScriptStringAnalyse(HDC, const void*, int, int, int, DWORD, int, SCRIPT_CONTROL*, SCRIPT_STATE*, const int*, SCRIPT_TABDEF*, const BYTE*, SCRIPT_STRING_ANALYSIS*);
+HRESULT ScriptStringFree(SCRIPT_STRING_ANALYSIS*);
+const SIZE* ScriptString_pSize(SCRIPT_STRING_ANALYSIS);
 	]])
 else	-- Unix
 	-- Load pangocairo library
@@ -1469,20 +1476,28 @@ Yutils = {
 						-- Get utf16 text
 						text = utf8_to_utf16(text)
 						local text_len = ffi.C.wcslen(text)
-						-- Complex script?
-						if false then	--script_lib.ScriptIsComplex(text, text_len, 1 --[[SIC_COMPLEX]]) == 0 --[[S_OK]] then
-						
-							-- TODO: complex scripting
-						
+						-- Get text extents with this font
+						local size = ffi.new("SIZE[1]")
+						if script_lib.ScriptIsComplex(text, text_len, 1 --[[SIC_COMPLEX]]) == 0 --[[S_OK]] then
+							if text_len < 1 then
+								size[0].cx, size[0].cy = 0, 0
+							else
+								local ssa = ffi.new("SCRIPT_STRING_ANALYSIS[1]")
+								if script_lib.ScriptStringAnalyse(dc, text, text_len, 1.5 * text_len + 16, -1, 0x20+0x80+0x1000 --[[SSA_FALLBACK | SSA_GLYPHS | SSA_LINK]], 0, nil, nil, nil, nil, nil, ssa) == 0 then
+									local psize = script_lib.ScriptString_pSize(ssa[0])
+									size[0] = psize[0]
+									script_lib.ScriptStringFree(ssa)
+								else
+									error("couldn't analyse complex string", 2)
+								end
+							end
 						else
-							-- Get text extents with this font
-							local size = ffi.new("SIZE[1]")
 							ffi.C.GetTextExtentPoint32W(dc, text, text_len, size)
-							return {
-								width = (size[0].cx * downscale + hspace * text_len) * xscale,
-								height = size[0].cy * downscale * yscale
-							}
 						end
+						return {
+							width = (size[0].cx * downscale + hspace * text_len) * xscale,
+							height = size[0].cy * downscale * yscale
+						}
 					end,
 					-- Converts text to ASS shape
 					text_to_shape = function(text)
@@ -1496,14 +1511,20 @@ Yutils = {
 						text = utf8_to_utf16(text)
 						local text_len = ffi.C.wcslen(text)
 						-- Complex script?
-						if false then	--script_lib.ScriptIsComplex(text, text_len, 1) == 0 then
-						
-							-- TODO: complex scripting
-						
+						if false then	--script_lib.ScriptIsComplex(text, text_len, 1) == 0 and text_len > 0 then
+							local ssa = ffi.new("SCRIPT_STRING_ANALYSIS[1]")
+							if script_lib.ScriptStringAnalyse(dc, text, text_len, 1.5 * text_len + 16, -1, 0x20+0x80+0x800+0x1000 --[[SSA_FALLBACK | SSA_GLYPHS | SSA_METAFILE | SSA_LINK]], 0, nil, nil, nil, nil, nil, ssa) == 0 then
+
+								-- TODO: complex scripting
+
+								script_lib.ScriptStringFree(ssa)
+							else
+								error("couldn't analyse complex string", 2)
+							end
 						else
-						
+
 							-- TODO: optional arguments (scale & spacing)
-						
+
 							-- Add path to device context
 							if text_len > 8192 then
 								error("text too long", 2)
