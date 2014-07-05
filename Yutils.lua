@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 5th July 2014, 18:31 (GMT+1)
+	Version: 5th July 2014, 23:45 (GMT+1)
 	
 	Yutils
 		table
@@ -1352,19 +1352,27 @@ Yutils = {
 					return data_packed
 				end,
 				get_data_text = function()
-					local data_pack, text, text_n, cur_x, off_x, off_y, shape = obj.get_data_packed(), {"{\\bord0\\shad0\\an7\\p1}"}, 1, 0, 0, 0, "m 0 0 l 1 0 1 1 0 1"
-					for i=1, #data_pack do
-						if cur_x == width then
-							cur_x = 1
+					local data_pack, text, text_n = obj.get_data_packed(), {"{\\bord0\\shad0\\an7\\p1}"}, 1
+					local x, y, off_x, chunk_size, color1, color2 = 0, 0, 0
+					local i, n = 1, #data_pack
+					while i <= n do
+						if x == width then
+							x = 0
+							y = y + 1
 							off_x = off_x - width
-							off_y = off_y + 1
-							shape = string.format("m %d %d l %d %d  %d %d  %d %d", off_x, off_y, off_x+1, off_y, off_x+1, off_y+1, off_x, off_y+1)
-						else
-							cur_x = cur_x + 1
+						end
+						chunk_size, color1 = 1, data_pack[i]
+						for xx=x+1, width-1 do
+							color2 = data_pack[i+(xx-x)]
+							if not (color1.r == color2.r and color1.g == color2.g and color1.b == color2.b and color1.a == color2.a) then
+								break
+							end
+							chunk_size = chunk_size + 1
 						end
 						text_n = text_n + 1
-						text[text_n] = string.format("{\\c&H%02X%02X%02X&\\1a&H%02X&}%s",
-																data_pack[i].b, data_pack[i].g, data_pack[i].r, 255-data_pack[i].a, shape)
+						text[text_n] = string.format("{\\c&H%02X%02X%02X&\\1a&H%02X&}m %d %d l %d %d %d %d %d %d",
+																color1.b, color1.g, color1.r, 255-color1.a, off_x, y, off_x+chunk_size, y, off_x+chunk_size, y+1, off_x, y+1)
+						i, x = i + chunk_size, x + chunk_size
 					end
 					return table.concat(text)
 				end
