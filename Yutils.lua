@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 5th July 2014, 16:20 (GMT+1)
+	Version: 5th July 2014, 18:31 (GMT+1)
 	
 	Yutils
 		table
@@ -1407,7 +1407,7 @@ Yutils = {
 				end
 				-- Create device context and set light resources deleter
 				local resources_deleter
-				local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), resources_deleter)
+				local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), function() resources_deleter() end)
 				-- Set context coordinates mapping mode
 				ffi.C.SetMapMode(dc, 1)	-- 1 = MM_TEXT
 				-- Set context backgrounds to transparent
