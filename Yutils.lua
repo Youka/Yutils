@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 4th July 2014, 20:25 (GMT+1)
+	Version: 5th July 2014, 16:20 (GMT+1)
 	
 	Yutils
 		table
@@ -261,6 +261,7 @@ void pango_attr_list_unref(PangoAttrList*);
 void pango_attr_list_insert(PangoAttrList*, PangoAttribute*);
 PangoAttribute* pango_attr_underline_new(PangoUnderline);
 PangoAttribute* pango_attr_strikethrough_new(gboolean);
+PangoAttribute* pango_attr_letter_spacing_new(int);
 void pango_layout_set_attributes(PangoLayout*, PangoAttrList*);
 PangoContext* pango_layout_get_context(PangoLayout*);
 const PangoFontDescription* pango_layout_get_font_description(PangoLayout*);
@@ -1396,11 +1397,11 @@ Yutils = {
 				-- Lua string in utf-8 to C string in utf-16
 				local function utf8_to_utf16(s)
 					-- Get resulting utf16 characters number (+ null-termination)
-					local wlen = ffi.C.MultiByteToWideChar(65001, 0, s, -1, nil, 0)	-- 65001 = CP_UTF8
+					local wlen = ffi.C.MultiByteToWideChar(65001, 0x0, s, -1, nil, 0)	-- 65001 = CP_UTF8
 					-- Allocate array for utf16 characters storage
 					local ws = ffi.new("wchar_t[?]", wlen)
 					-- Convert utf8 string to utf16 characters
-					ffi.C.MultiByteToWideChar(65001, 0, s, -1, ws, wlen)
+					ffi.C.MultiByteToWideChar(65001, 0x0, s, -1, ws, wlen)
 					-- Return utf16 C string
 					return ws
 				end
@@ -1485,18 +1486,21 @@ Yutils = {
 						text = utf8_to_utf16(text)
 						local text_len = ffi.C.wcslen(text)
 						-- Add path to device context
-						if hspace == 0 then
-							if text_len > 8192 then
-								error("text too long", 2)
-							end
-							ffi.C.BeginPath(dc)
-							ffi.C.ExtTextOutW(dc, 0, 0, 0, nil, text, text_len, nil)
-							ffi.C.EndPath(dc)
-						else
-							
-							-- TODO: optional spacing
-							
+						if text_len > 8192 then
+							error("text too long", 2)
 						end
+						local char_widths
+						if hspace ~= 0 then
+							char_widths = ffi.new("INT[?]", text_len)
+							local size, space = ffi.new("SIZE[1]"), hspace * upscale
+							for i=0, text_len-1 do
+								ffi.C.GetTextExtentPoint32W(dc, text+i, 1, size)
+								char_widths[i] = size[0].cx + space
+							end
+						end
+						ffi.C.BeginPath(dc)
+						ffi.C.ExtTextOutW(dc, 0, 0, 0x0, nil, text, text_len, char_widths)
+						ffi.C.EndPath(dc)
 						-- Get path data
 						local points_n = ffi.C.GetPath(dc, nil, nil, 0)
 						if points_n > 0 then
@@ -1506,8 +1510,8 @@ Yutils = {
 							local i, last_type, cur_type, cur_point = 0
 							while i < points_n do
 								cur_type, cur_point = types[i], points[i]
-								if cur_type == 6 then	-- 6 = PT_MOVETO
-									if last_type ~= 6 then
+								if cur_type == 0x6 then	-- 6 = PT_MOVETO
+									if last_type ~= 0x6 then
 										shape_n = shape_n + 1
 										shape[shape_n] = "m"
 										last_type = cur_type
@@ -1516,8 +1520,8 @@ Yutils = {
 									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale * yscale)
 									shape_n = shape_n + 2
 									i = i + 1
-								elseif cur_type == 2 or cur_type == 3 then	-- 2 = PT_LINETO, 3 = PT_LINETO|PT_CLOSEFIGURE
-									if last_type ~= 2 then
+								elseif cur_type == 0x2 or cur_type == 0x3 then	-- 2 = PT_LINETO, 3 = PT_LINETO|PT_CLOSEFIGURE
+									if last_type ~= 0x2 then
 										shape_n = shape_n + 1
 										shape[shape_n] = "l"
 										last_type = cur_type
@@ -1526,8 +1530,8 @@ Yutils = {
 									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale * yscale)
 									shape_n = shape_n + 2
 									i = i + 1
-								elseif cur_type == 4 or cur_type == 5 then	-- 4 = PT_BEZIERTO, 5 = PT_BEZIERTO|PT_CLOSEFIGURE
-									if last_type ~= 4 then
+								elseif cur_type == 0x4 or cur_type == 0x5 then	-- 4 = PT_BEZIERTO, 5 = PT_BEZIERTO|PT_CLOSEFIGURE
+									if last_type ~= 0x4 then
 										shape_n = shape_n + 1
 										shape[shape_n] = "b"
 										last_type = cur_type
@@ -1575,6 +1579,9 @@ Yutils = {
 				local attr = ffi.gc(script_lib.pango_attr_list_new(), script_lib.pango_attr_list_unref)
 				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_underline_new(underline and ffi.C.PANGO_UNDERLINE_SINGLE or ffi.C.PANGO_UNDERLINE_NONE))
 				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_strikethrough_new(strikeout))
+				if hspace ~= 0 then
+					script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_letter_spacing_new(hspace * 1024 * upscale))
+				end
 				script_lib.pango_layout_set_attributes(layout, attr)
 				-- Return font object
 				return {
@@ -1605,7 +1612,7 @@ Yutils = {
 						local rect = ffi.new("PangoRectangle[1]")
 						script_lib.pango_layout_get_pixel_extents(layout, nil, rect)
 						return {
-							width = (rect[0].width * downscale + hspace * Yutils.utf8.len(text)) * xscale,
+							width = rect[0].width * downscale * xscale,
 							height = rect[0].height * downscale * yscale
 						}
 					end,
@@ -1616,17 +1623,11 @@ Yutils = {
 							error("text expected", 2)
 						end
 						-- Set text path to layout
-						if hspace == 0 then
-							script_lib.pango_layout_set_text(layout, text, -1)
-							script_lib.cairo_save(context)
-							script_lib.cairo_scale(context, shapescale * xscale, shapescale * yscale)
-							script_lib.pango_cairo_layout_path(context, layout)
-							script_lib.cairo_restore(context)
-						else
-							
-							-- TODO: optional spacing
-							
-						end
+						script_lib.cairo_save(context)
+						script_lib.cairo_scale(context, shapescale * xscale, shapescale * yscale)
+						script_lib.pango_layout_set_text(layout, text, -1)
+						script_lib.pango_cairo_layout_path(context, layout)
+						script_lib.cairo_restore(context)
 						-- Initialize shape as table
 						local shape, shape_n = {}, 0
 						-- Convert path to shape
