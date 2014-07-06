@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 5th July 2014, 23:45 (GMT+1)
+	Version: 6th July 2014, 11:27 (GMT+1)
 	
 	Yutils
 		table
@@ -1361,17 +1361,27 @@ Yutils = {
 							y = y + 1
 							off_x = off_x - width
 						end
-						chunk_size, color1 = 1, data_pack[i]
-						for xx=x+1, width-1 do
-							color2 = data_pack[i+(xx-x)]
-							if not (color1.r == color2.r and color1.g == color2.g and color1.b == color2.b and color1.a == color2.a) then
-								break
+						chunk_size, color1, text_n = 1, data_pack[i], text_n + 1
+						if color1.a == 0 then
+							for xx=x+1, width-1 do
+								color2 = data_pack[i+(xx-x)]
+								if not (color2 and color2.a == 0) then
+									break
+								end
+								chunk_size = chunk_size + 1
 							end
-							chunk_size = chunk_size + 1
+							text[text_n] = string.format("{}m %d %d l %d %d", off_x, y, off_x+chunk_size, y+1)
+						else
+							for xx=x+1, width-1 do
+								color2 = data_pack[i+(xx-x)]
+								if not (color2 and color1.r == color2.r and color1.g == color2.g and color1.b == color2.b and color1.a == color2.a) then
+									break
+								end
+								chunk_size = chunk_size + 1
+							end
+							text[text_n] = string.format("{\\c&H%02X%02X%02X&\\1a&H%02X&}m %d %d l %d %d %d %d %d %d",
+																	color1.b, color1.g, color1.r, 255-color1.a, off_x, y, off_x+chunk_size, y, off_x+chunk_size, y+1, off_x, y+1)
 						end
-						text_n = text_n + 1
-						text[text_n] = string.format("{\\c&H%02X%02X%02X&\\1a&H%02X&}m %d %d l %d %d %d %d %d %d",
-																color1.b, color1.g, color1.r, 255-color1.a, off_x, y, off_x+chunk_size, y, off_x+chunk_size, y+1, off_x, y+1)
 						i, x = i + chunk_size, x + chunk_size
 					end
 					return table.concat(text)
