@@ -79,6 +79,7 @@ local ffi = require("ffi")
 -- Check OS & load fitting complex scripting library
 local script_lib
 if ffi.os == "Windows" then
+	-- WinGDI already loaded in C namespace by default
 	-- Set C definitions for WinAPI
 	ffi.cdef([[
 typedef unsigned int UINT;
@@ -395,7 +396,7 @@ Yutils = {
 	},
 	-- Math sublibrary
 	math = {
-		-- Get points on n-degree bezier curve
+		-- Get point on n-degree bezier curve
 		bezier = function(pct, pts)
 			-- Check arguments
 			if type(pct) ~= "number" or type(pts) ~= "table" or pct < 0 or pct > 1 then
@@ -625,7 +626,7 @@ Yutils = {
 				z1 * x2 - x1 * z2,
 				x1 * y2 - y1 * x2
 		end,
-		-- Generates a random number in given range with specific distance to others
+		-- Generates a random number in given range with specific item distance
 		randomsteps = function(min, max, step)
 			-- Check arguments
 			if type(min) ~= "number" or type(max) ~= "number" or type(step) ~= "number" or max < min or step <= 0 then
@@ -646,7 +647,7 @@ Yutils = {
 	},
 	-- Algorithm sublibrary
 	algorithm = {
-		-- Creates iterator through frames
+		-- Creates iterator through frame times
 		frames = function(starts, ends, dur)
 			-- Check arguments
 			if type(starts) ~= "number" or type(ends) ~= "number" or type(dur) ~= "number" or dur == 0 then
@@ -1183,7 +1184,7 @@ Yutils = {
 			end
 			return pixels
 		end,
-		-- Apply matrix to shape coordinates
+		-- Applies matrix to shape coordinates
 		transform = function(shape, matrix)
 			-- Check arguments
 			if type(shape) ~= "string" or type(matrix) ~= "table" or type(matrix.transform) ~= "function" then
@@ -1597,9 +1598,7 @@ Yutils = {
 				local attr = ffi.gc(script_lib.pango_attr_list_new(), script_lib.pango_attr_list_unref)
 				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_underline_new(underline and ffi.C.PANGO_UNDERLINE_SINGLE or ffi.C.PANGO_UNDERLINE_NONE))
 				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_strikethrough_new(strikeout))
-				if hspace ~= 0 then
-					script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_letter_spacing_new(hspace * 1024 * upscale))
-				end
+				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_letter_spacing_new(hspace * 1024 * upscale))
 				script_lib.pango_layout_set_attributes(layout, attr)
 				-- Return font object
 				return {

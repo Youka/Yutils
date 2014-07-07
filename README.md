@@ -9,7 +9,7 @@ Files:
 * Yutils.lua (*the library*)
 * README.md (*this file*)
 * tests/ (*folder with example scripts of Yutils' usage*)
-* lutjit/ (*LuaJIT compiler&interpreter for executing this project's files*)
+* luajit/ (*LuaJIT compiler&interpreter for executing this project's files*)
 * .gitignore (*files to ignore by Git*)
 * .gitattributes (*how Git should handle files*)
 * .gitmodules (*submodules of this project*)
