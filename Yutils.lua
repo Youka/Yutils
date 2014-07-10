@@ -19,10 +19,11 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 10th July 2014, 14:52 (GMT+1)
+	Version: 10th July 2014, 15:28 (GMT+1)
 	
 	Yutils
 		table
+			append(dst_t, src_t) -> table
 			copy(t) -> table
 			tostring(t) -> string
 		utf8
@@ -289,9 +290,24 @@ local Yutils
 Yutils = {
 	-- Table sublibrary
 	table = {
+		-- Appends table to table
+		append = function(dst_t, src_t)
+			-- Check arguments
+			if type(dst_t) ~= "table" or type(src_t) ~= "table" then
+				error("2 tables expected", 2)
+			end
+			-- Insert source table array elements to the end of destination table
+			local dst_t_n = #dst_t
+			for i, v in ipairs(src_t) do
+				dst_t_n = dst_t_n + 1
+				dst_t[dst_t_n] = v
+			end
+			-- Return (modified) destination table
+			return dst_t
+		end,
 		-- Copies table deep
 		copy = function(t)
-			-- Check arguments
+			-- Check argument
 			if type(t) ~= "table" then
 				error("table expected", 2)
 			end
@@ -307,7 +323,7 @@ Yutils = {
 		end,
 		-- Converts table to string
 		tostring = function(t)
-			-- Check arguments
+			-- Check argument
 			if type(t) ~= "table" then
 				error("table expected", 2)
 			end
@@ -1039,7 +1055,7 @@ Yutils = {
 				figures[figures_n] = figure
 			end
 			-- Vector sizer
-			local function vec_sizer(x, y, size)
+			local function sizer(x, y, size)
 				local len = Yutils.math.distance(x, y)
 				if len == 0 then
 					return 0, 0
@@ -1097,9 +1113,9 @@ Yutils = {
 						end
 						-- Calculate orthogonal vectors to both neighbour points
 						local o_vec1_x, o_vec1_y = Yutils.math.ortho(point[1]-pre_point[1], point[2]-pre_point[2], 0, 0, 0, 1)
-						o_vec1_x, o_vec1_y = vec_sizer(o_vec1_x, o_vec1_y, width)
+						o_vec1_x, o_vec1_y = sizer(o_vec1_x, o_vec1_y, width)
 						local o_vec2_x, o_vec2_y = Yutils.math.ortho(post_point[1]-point[1], post_point[2]-point[2], 0, 0, 0, 1)
-						o_vec2_x, o_vec2_y = vec_sizer(o_vec2_x, o_vec2_y, width)
+						o_vec2_x, o_vec2_y = sizer(o_vec2_x, o_vec2_y, width)
 						-- Calculate degree & circumference between orthogonal vectors
 						local degree = Yutils.math.degree(o_vec1_x, o_vec1_y, 0, o_vec2_x, o_vec2_y, 0)
 						local circ = math.abs(math.rad(degree)) * width
