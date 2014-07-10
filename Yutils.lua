@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 6th July 2014, 11:27 (GMT+1)
+	Version: 10th July 2014, 14:52 (GMT+1)
 	
 	Yutils
 		table
@@ -30,6 +30,7 @@
 			chars(s) -> function
 			len(s) -> number
 		math
+			arc_curve(x, y, cx, cy, angle) -> 8, 16, 24 or 32 numbers
 			bezier(pct, pts) -> number, number, number
 			create_matrix() -> table
 				get_data() -> table
@@ -396,6 +397,71 @@ Yutils = {
 	},
 	-- Math sublibrary
 	math = {
+		-- Converts an arc to 1-4 cubic bezier curve(s)
+		arc_curve = function(x, y, cx, cy, angle)
+			-- Check arguments
+			if type(x) ~= "number" or type(y) ~= "number" or type(cx) ~= "number" or type(cy) ~= "number" or type(angle) ~= "number" or
+				angle < -360 or angle > 360 then
+				error("start & center point and valid angle (-360<=x<=360) expected", 2)
+			end
+			-- Something to do?
+			if angle ~= 0 then
+				-- Point rotater
+				local function rotate(x, y, angle)
+					local ra = math.rad(angle)
+					return math.cos(ra)*x - math.sin(ra)*y,
+							math.sin(ra)*x + math.cos(ra)*y
+				end
+				-- Vector sizer
+				local function sizer(x, y, size)
+					local len = Yutils.math.distance(x, y)
+					if len == 0 then
+						return 0, 0
+					else
+						return x / len * size, y / len * size
+					end
+				end
+				-- Factor for bezier control points distance to node points
+				local kappa = 4 * (math.sqrt(2) - 1) / 3
+				-- Relative points to center
+				local rx0, ry0, rx1, ry1, rx2, ry2, rx3, ry3, rx03, ry03 = x - cx, y - cy
+				-- Define arc clock direction & set angle to positive range
+				local cw = angle > 0 and 1 or -1
+				if angle < 0 then
+					angle = -angle
+				end
+				-- Create curves in 90 degree chunks
+				local curves, curves_n, angle_sum, cur_angle_pct = {}, 0, 0
+				repeat
+					-- Get arc end point
+					cur_angle_pct = math.min(angle - angle_sum, 90) / 90
+					rx3, ry3 = rotate(rx0, ry0, cw * 90 * cur_angle_pct)
+					-- Get arc start to end vector
+					rx03, ry03 = rx3 - rx0, ry3 - ry0
+					-- Scale arc vector to curve node <-> control point distance
+					rx03, ry03 = sizer(rx03, ry03, math.sqrt(Yutils.math.distance(rx03, ry03)^2/2) * kappa)
+					-- Get curve control points
+					rx1, ry1 = rotate(rx03, ry03, cw * -45 * cur_angle_pct)
+					rx1, ry1 = rx0 + rx1, ry0 + ry1
+					rx2, ry2 = rotate(-rx03, -ry03, cw * 45 * cur_angle_pct)
+					rx2, ry2 = rx3 + rx2, ry3 + ry2
+					-- Insert curve to output
+					curves[curves_n+1], curves[curves_n+2], curves[curves_n+3], curves[curves_n+4],
+					curves[curves_n+5], curves[curves_n+6], curves[curves_n+7], curves[curves_n+8] =
+					cx + rx0, cy + ry0, cx + rx1, cy + ry1, cx + rx2, cy + ry2, cx + rx3, cy + ry3
+					curves_n = curves_n + 8
+					-- Prepare next curve
+					rx0, ry0 = rx3, ry3
+					angle_sum = angle_sum + 90
+				until angle_sum >= angle
+				-- Return curve points as tuple
+				if unpack then
+					return unpack(curves)
+				else
+					return table.unpack(curves)
+				end
+			end
+		end,
 		-- Get point on n-degree bezier curve
 		bezier = function(pct, pts)
 			-- Check arguments

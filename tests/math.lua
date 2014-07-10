@@ -1,5 +1,6 @@
 local Yutils = dofile("../Yutils.lua")
 
+print("Arc curve: ", Yutils.math.arc_curve(100, 0, 0, 0, 95))
 print("Curve point: ", Yutils.math.bezier(0.5, {{0,0},{4,-10},{8,2},{12,0}}))
 print("Distance: ", Yutils.math.distance(10, -5, -3))
 print("Degree: ", Yutils.math.degree(0,-1,0, -0.1,1,0))
