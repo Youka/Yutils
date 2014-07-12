@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 10th July 2014, 15:28 (GMT+1)
+	Version: 12th July 2014, 05:25 (GMT+1)
 	
 	Yutils
 		table
@@ -42,8 +42,8 @@
 				scale(x, y, z) -> table
 				rotate(axis, angle) -> table
 				transform(x, y, z[, w]) -> number, number, number, number
-			distance(x, y[, z]) -> number
 			degree(x1, y1, z1, x2, y2, z2) -> number
+			distance(x, y[, z]) -> number
 			ortho(x1, y1, z1, x2, y2, z2) -> number, number, number
 			randomsteps(min, max, step) -> number
 			round(x) -> number
@@ -54,6 +54,7 @@
 			bounding(shape) -> number, number, number, number
 			filter(shape, filter) -> string
 			flatten(shape) -> string
+			glue(src_shape, dst_shape[, transform_callback]) -> string
 			move(shape, x, y) -> string
 			split(shape, max_len) -> string
 			to_outline(shape, width) -> string
@@ -670,15 +671,6 @@ Yutils = {
 			}
 			return obj
 		end,
-		-- Length of vector
-		distance = function(x, y, z)
-			-- Check arguments
-			if type(x) ~= "number" or type(y) ~= "number" or (z ~= nil and type(z) ~= "number") then
-				error("one vector (2 or 3 numbers) expected", 2)
-			end
-			-- Calculate length
-			return z and math.sqrt(x*x + y*y + z*z) or math.sqrt(x*x + y*y)
-		end,
 		-- Degree between two 3d vectors
 		degree = function(x1, y1, z1, x2, y2, z2)
 			-- Check arguments
@@ -695,6 +687,15 @@ Yutils = {
 			)
 			-- Return with sign by clockwise direction
 			return (x1*y2 - y1*x2) < 0 and -degree or degree
+		end,
+		-- Length of vector
+		distance = function(x, y, z)
+			-- Check arguments
+			if type(x) ~= "number" or type(y) ~= "number" or (z ~= nil and type(z) ~= "number") then
+				error("one vector (2 or 3 numbers) expected", 2)
+			end
+			-- Calculate length
+			return z and math.sqrt(x*x + y*y + z*z) or math.sqrt(x*x + y*y)
 		end,
 		-- Get orthogonal vector of 2 given vectors
 		ortho = function(x1, y1, z1, x2, y2, z2)
@@ -926,6 +927,90 @@ Yutils = {
 			end
 			-- Return shape without curves
 			return shape
+		end,
+		-- Projects shape on shape
+		glue = function(src_shape, dst_shape, transform_callback)
+			-- Check arguments
+			if type(src_shape) ~= "string" or type(dst_shape) ~= "string" or (transform_callback ~= nil and type(transform_callback) ~= "function") then
+				error("2 shapes and optional callback function expected", 2)
+			end
+			-- Trim destination shape to first figure
+			local _, find_end = dst_shape:find("^%s*m.-m")
+			if find_end then
+				dst_shape = dst_shape:sub(1, find_end - 1)
+			end
+			-- Convert destination shape curves to lines (with upscale for precision)
+			local upscale = 64
+			local downscale = 1 / upscale
+			dst_shape = Yutils.shape.flatten(Yutils.shape.filter(dst_shape, function(x, y)
+				return x * upscale, y * upscale
+			end))
+			-- Collect destination shape/figure lines + lengths
+			local dst_lines, dst_lines_n = {}, 0
+			local dst_lines_length, dst_line, last_point = 0
+			Yutils.shape.filter(dst_shape, function(x, y)
+				x, y = x * downscale, y * downscale
+				if last_point then
+					dst_line = {last_point[1], last_point[2], x - last_point[1], y - last_point[2], Yutils.math.distance(x - last_point[1], y - last_point[2])}
+					if dst_line[5] > 0 then
+						dst_lines_n = dst_lines_n + 1
+						dst_lines[dst_lines_n] = dst_line
+						dst_lines_length = dst_lines_length + dst_line[5]
+					end
+				end
+				last_point = {x, y}
+			end)
+			-- Any destination line?
+			if dst_lines_n > 0 then
+				-- Add relative positions to destination lines
+				local cur_length = 0
+				for _, dst_line in ipairs(dst_lines) do
+					dst_line[6] = cur_length / dst_lines_length
+					cur_length = cur_length + dst_line[5]
+					dst_line[7] = cur_length / dst_lines_length
+				end
+				-- Vector sizer
+				local function sizer(x, y, size)
+					local len = Yutils.math.distance(x, y)
+					if len == 0 then
+						return 0, 0
+					else
+						return x / len * size, y / len * size
+					end
+				end
+				-- Get source shape exact bounding box
+				local x0, _, x1, y1 = Yutils.shape.bounding(Yutils.shape.flatten(src_shape))
+				-- Source shape has body?
+				if x0 and x1 > x0 then
+					-- Source shape width
+					local w = x1 - x0
+					-- Shift source shape on destination shape
+					local x_pct, y_off, x_pct_temp, y_off_temp
+					local dst_line_pos, ovec_x, ovec_y
+					return Yutils.shape.filter(src_shape, function(x, y)
+						-- Get relative source point to baseline
+						x_pct, y_off = (x - x0) / w, y - y1
+						if transform_callback then
+							x_pct_temp, y_off_temp = transform_callback(x_pct, y_off)
+							if type(x_pct_temp) == "number" and type(y_off_temp) == "number" then
+								x_pct, y_off = math.max(0, math.min(x_pct_temp, 1)), y_off_temp
+							end
+						end
+						-- Search for destination point, relative to source point
+						for i=1, dst_lines_n do
+							dst_line = dst_lines[i]
+							if x_pct >= dst_line[6] and x_pct <= dst_line[7] then
+								dst_line_pos = (x_pct - dst_line[6]) / (dst_line[7] - dst_line[6])
+								-- Span orthogonal vector to baseline for final source to destination projection
+								ovec_x, ovec_y = Yutils.math.ortho(dst_line[3], dst_line[4], 0, 0, 0, -1)
+								ovec_x, ovec_y = sizer(ovec_x, ovec_y, y_off)
+								return dst_line[1] + dst_line_pos * dst_line[3] + ovec_x,
+										dst_line[2] + dst_line_pos * dst_line[4] + ovec_y
+							end
+						end
+					end)
+				end
+			end
 		end,
 		-- Shifts shape coordinates
 		move = function(shape, x, y)
