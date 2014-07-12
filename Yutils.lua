@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 12th July 2014, 05:25 (GMT+1)
+	Version: 12th July 2014, 18:20 (GMT+1)
 	
 	Yutils
 		table
@@ -47,6 +47,7 @@
 			ortho(x1, y1, z1, x2, y2, z2) -> number, number, number
 			randomsteps(min, max, step) -> number
 			round(x) -> number
+			stretch(x, y, z, length) -> number, number, number
 		algorithm
 			frames(starts, ends, dur) -> function
 			lines(text) -> function
@@ -286,6 +287,13 @@ void cairo_path_destroy(cairo_path_t*);
 	]])
 end
 
+-- Helper functions (better performance than library members)
+local function rotate2d(x, y, angle)
+	local ra = math.rad(angle)
+	return math.cos(ra)*x - math.sin(ra)*y,
+		math.sin(ra)*x + math.cos(ra)*y
+end
+
 -- Create library table
 local Yutils
 Yutils = {
@@ -423,21 +431,6 @@ Yutils = {
 			end
 			-- Something to do?
 			if angle ~= 0 then
-				-- Point rotater
-				local function rotate(x, y, angle)
-					local ra = math.rad(angle)
-					return math.cos(ra)*x - math.sin(ra)*y,
-							math.sin(ra)*x + math.cos(ra)*y
-				end
-				-- Vector sizer
-				local function sizer(x, y, size)
-					local len = Yutils.math.distance(x, y)
-					if len == 0 then
-						return 0, 0
-					else
-						return x / len * size, y / len * size
-					end
-				end
 				-- Factor for bezier control points distance to node points
 				local kappa = 4 * (math.sqrt(2) - 1) / 3
 				-- Relative points to center
@@ -452,15 +445,15 @@ Yutils = {
 				repeat
 					-- Get arc end point
 					cur_angle_pct = math.min(angle - angle_sum, 90) / 90
-					rx3, ry3 = rotate(rx0, ry0, cw * 90 * cur_angle_pct)
+					rx3, ry3 = rotate2d(rx0, ry0, cw * 90 * cur_angle_pct)
 					-- Get arc start to end vector
 					rx03, ry03 = rx3 - rx0, ry3 - ry0
 					-- Scale arc vector to curve node <-> control point distance
-					rx03, ry03 = sizer(rx03, ry03, math.sqrt(Yutils.math.distance(rx03, ry03)^2/2) * kappa)
+					rx03, ry03 = Yutils.math.stretch(rx03, ry03, 0, math.sqrt(Yutils.math.distance(rx03, ry03)^2/2) * kappa)
 					-- Get curve control points
-					rx1, ry1 = rotate(rx03, ry03, cw * -45 * cur_angle_pct)
+					rx1, ry1 = rotate2d(rx03, ry03, cw * -45 * cur_angle_pct)
 					rx1, ry1 = rx0 + rx1, ry0 + ry1
-					rx2, ry2 = rotate(-rx03, -ry03, cw * 45 * cur_angle_pct)
+					rx2, ry2 = rotate2d(-rx03, -ry03, cw * 45 * cur_angle_pct)
 					rx2, ry2 = rx3 + rx2, ry3 + ry2
 					-- Insert curve to output
 					curves[curves_n+1], curves[curves_n+2], curves[curves_n+3], curves[curves_n+4],
@@ -726,6 +719,22 @@ Yutils = {
 			end
 			-- Return number rounded to nearest integer
 			return math.floor(x + 0.5)
+		end,
+		-- Scales vector to given length
+		stretch = function(x, y, z, length)
+			-- Check arguments
+			if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" or type(length) ~= "number" then
+				error("vector (3d) and length expected", 2)
+			end
+			-- Get current vector length
+			local cur_length = Yutils.math.distance(x, y, z)
+			-- Scale vector to new length
+			if cur_length == 0 then
+				return 0, 0, 0
+			else
+				local factor = length / cur_length
+				return x * factor, y * factor, z * factor
+			end
 		end
 	},
 	-- Algorithm sublibrary
@@ -969,15 +978,6 @@ Yutils = {
 					cur_length = cur_length + dst_line[5]
 					dst_line[7] = cur_length / dst_lines_length
 				end
-				-- Vector sizer
-				local function sizer(x, y, size)
-					local len = Yutils.math.distance(x, y)
-					if len == 0 then
-						return 0, 0
-					else
-						return x / len * size, y / len * size
-					end
-				end
 				-- Get source shape exact bounding box
 				local x0, _, x1, y1 = Yutils.shape.bounding(Yutils.shape.flatten(src_shape))
 				-- Source shape has body?
@@ -1003,7 +1003,7 @@ Yutils = {
 								dst_line_pos = (x_pct - dst_line[6]) / (dst_line[7] - dst_line[6])
 								-- Span orthogonal vector to baseline for final source to destination projection
 								ovec_x, ovec_y = Yutils.math.ortho(dst_line[3], dst_line[4], 0, 0, 0, -1)
-								ovec_x, ovec_y = sizer(ovec_x, ovec_y, y_off)
+								ovec_x, ovec_y = Yutils.math.stretch(ovec_x, ovec_y, 0, y_off)
 								return dst_line[1] + dst_line_pos * dst_line[3] + ovec_x,
 										dst_line[2] + dst_line_pos * dst_line[4] + ovec_y
 							end
@@ -1139,21 +1139,6 @@ Yutils = {
 				figures_n = figures_n + 1
 				figures[figures_n] = figure
 			end
-			-- Vector sizer
-			local function sizer(x, y, size)
-				local len = Yutils.math.distance(x, y)
-				if len == 0 then
-					return 0, 0
-				else
-					return x / len * size, y / len * size
-				end
-			end
-			-- Point rotater
-			local function rotate(x, y, angle)
-				local ra = math.rad(angle)
-				return math.cos(ra)*x - math.sin(ra)*y,
-						math.sin(ra)*x + math.cos(ra)*y
-			end
 			-- Create stroke shape out of figures
 			local stroke_shape, stroke_shape_n = {}, 0
 			for fi, figure in ipairs(figures) do
@@ -1198,9 +1183,9 @@ Yutils = {
 						end
 						-- Calculate orthogonal vectors to both neighbour points
 						local o_vec1_x, o_vec1_y = Yutils.math.ortho(point[1]-pre_point[1], point[2]-pre_point[2], 0, 0, 0, 1)
-						o_vec1_x, o_vec1_y = sizer(o_vec1_x, o_vec1_y, width)
+						o_vec1_x, o_vec1_y = Yutils.math.stretch(o_vec1_x, o_vec1_y, 0, width)
 						local o_vec2_x, o_vec2_y = Yutils.math.ortho(post_point[1]-point[1], post_point[2]-point[2], 0, 0, 0, 1)
-						o_vec2_x, o_vec2_y = sizer(o_vec2_x, o_vec2_y, width)
+						o_vec2_x, o_vec2_y = Yutils.math.stretch(o_vec2_x, o_vec2_y, 0, width)
 						-- Calculate degree & circumference between orthogonal vectors
 						local degree = Yutils.math.degree(o_vec1_x, o_vec1_y, 0, o_vec2_x, o_vec2_y, 0)
 						local circ = math.abs(math.rad(degree)) * width
@@ -1214,7 +1199,7 @@ Yutils = {
 						if circ > max_circ then
 							local circ_rest = circ % max_circ
 							for cur_circ = circ_rest > 0 and circ_rest or max_circ, circ, max_circ do
-								local curve_vec_x, curve_vec_y = rotate(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
+								local curve_vec_x, curve_vec_y = rotate2d(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
 								outline_n = outline_n + 1
 								outline[outline_n] = string.format("%s%d %d",
 																			outline_n == 1 and "m " or outline_n == 2 and "l " or "",
