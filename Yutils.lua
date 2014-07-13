@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 12th July 2014, 18:20 (GMT+1)
+	Version: 13th July 2014, 19:02 (GMT+1)
 	
 	Yutils
 		table
@@ -77,6 +77,12 @@
 				text_extents(text) -> table
 				text_to_shape(text) -> string
 ]]
+
+-- Configuration
+local CURVE_TOLERANCE = 1	-- Angle in degree to define a curve as flat
+local MAX_CIRCUMFERENCE = 2	-- Circumference steps to create round edges out of lines
+local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
+local FONT_PRECISION = 64	-- Font scale for better precision output from native font system
 
 -- Load FFI interface
 local ffi = require("ffi")
@@ -885,7 +891,7 @@ Yutils = {
 				local pts, pts_n = {x0, y0}, 2
 				-- Conversion in recursive processing
 				local function convert_recursive(x0, y0, x1, y1, x2, y2, x3, y3)
-					if curve4_is_flat(x0, y0, x1, y1, x2, y2, x3, y3, 1) then
+					if curve4_is_flat(x0, y0, x1, y1, x2, y2, x3, y3, CURVE_TOLERANCE) then
 						pts[pts_n+1] = x3
 						pts[pts_n+2] = y3
 						pts_n = pts_n + 2
@@ -1195,10 +1201,9 @@ Yutils = {
 																	outline_n == 1 and "m " or outline_n == 2 and "l " or "",
 																	Yutils.math.round(point[1] + o_vec1_x), Yutils.math.round(point[2] + o_vec1_y))
 						-- Round edge needed?
-						local max_circ = 2
-						if circ > max_circ then
-							local circ_rest = circ % max_circ
-							for cur_circ = circ_rest > 0 and circ_rest or max_circ, circ, max_circ do
+						if circ > MAX_CIRCUMFERENCE then
+							local circ_rest = circ % MAX_CIRCUMFERENCE
+							for cur_circ = circ_rest > 0 and circ_rest or MAX_CIRCUMFERENCE, circ, MAX_CIRCUMFERENCE do
 								local curve_vec_x, curve_vec_y = rotate2d(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
 								outline_n = outline_n + 1
 								outline[outline_n] = string.format("%s%d %d",
@@ -1221,7 +1226,7 @@ Yutils = {
 				error("shape expected", 2)
 			end
 			-- Scale values for later anti-aliasing
-			local upscale = 8
+			local upscale = SUPERSAMPLING
 			local downscale = 1 / upscale
 			-- Get shape bounding
 			local x1, y1, x2, y2 = Yutils.shape.bounding(shape)
@@ -1560,7 +1565,7 @@ Yutils = {
 				hspace = 0
 			end
 			-- Font scale values for increased size & later downscaling to produce floating point coordinates
-			local upscale = 64
+			local upscale = FONT_PRECISION
 			local downscale = 1 / upscale
 			local shapescale = downscale * 8
 			-- Body by operation system
