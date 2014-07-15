@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 13th July 2014, 19:02 (GMT+1)
+	Version: 15th July 2014, 07:33 (GMT+1)
 	
 	Yutils
 		table
@@ -79,8 +79,9 @@
 ]]
 
 -- Configuration
+local FP_PRECISION = 100	-- Floating point precision by divisor (for shape points)
 local CURVE_TOLERANCE = 1	-- Angle in degree to define a curve as flat
-local MAX_CIRCUMFERENCE = 2	-- Circumference steps to create round edges out of lines
+local MAX_CIRCUMFERENCE = 1.5	-- Circumference step size to create round edges out of lines
 local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
 local FONT_PRECISION = 64	-- Font scale for better precision output from native font system
 
@@ -294,6 +295,9 @@ void cairo_path_destroy(cairo_path_t*);
 end
 
 -- Helper functions (better performance than library members)
+local function roundf(x)
+	return math.floor(x * FP_PRECISION) / FP_PRECISION
+end
 local function rotate2d(x, y, angle)
 	local ra = math.rad(angle)
 	return math.cos(ra)*x - math.sin(ra)*y,
@@ -817,31 +821,61 @@ Yutils = {
 				error("shape expected", 2)
 			end
 			-- Bounding data
-			local x1, y1, x2, y2
+			local x0, y0, x1, y1
 			-- Calculate minimal and maximal coordinates
-			for cx, cy in shape:gmatch("(%-?%d+)%s+(%-?%d+)") do
-				cx, cy = tonumber(cx), tonumber(cy)
-				x1 = x1 and math.min(x1, cx) or cx
-				y1 = y1 and math.min(y1, cy) or cy
-				x2 = x2 and math.max(x2, cx) or cx
-				y2 = y2 and math.max(y2, cy) or cy
-			end
-			return x1, y1, x2, y2
+			Yutils.shape.filter(shape, function(x, y)
+				x0 = x0 and math.min(x0, x) or x
+				y0 = y0 and math.min(y0, y) or y
+				x1 = x1 and math.max(x1, x) or x
+				y1 = y1 and math.max(y1, y) or y
+			end)
+			return x0, y0, x1, y1
 		end,
-		-- Filters shape coordinates
+		-- Filters shape points
 		filter = function(shape, filter)
 			-- Check arguments
 			if type(shape) ~= "string" or type(filter) ~= "function" then
 				error("shape and filter function expected", 2)
 			end
-			-- Filter!
-			local new_shape = shape:gsub("(%-?%d+)%s+(%-?%d+)", function(cx, cy)
-				local new_cx, new_cy = filter(tonumber(cx), tonumber(cy))
-				if type(new_cx) == "number" and type(new_cy) == "number" then
-					return string.format("%d %d", new_cx, new_cy)
+			-- Iterate through space separated tokens
+			local token_start, token_end, token, token_num = 1
+			local point_start, typ, x, new_point
+			repeat
+				token_start, token_end, token = shape:find("([^%s]+)", token_start)
+				if token_start then
+					-- Continue by token type / is number
+					token_num = tonumber(token)
+					if not token_num then
+						-- Set point type
+						point_start, typ, x = token_start, token
+					else
+						-- Set point coordinate
+						if not x then
+							-- Set x coordinate
+							if not point_start then
+								point_start = token_start
+							end
+							x = token_num
+						else
+							-- Apply filter on completed point
+							x, token_num = filter(x, token_num, typ)
+							-- Point to replace?
+							if type(x) == "number" and type(token_num) == "number" then
+								new_point = typ and string.format("%s %s %s", typ, roundf(x), roundf(token_num)) or
+												string.format("%s %s", roundf(x), roundf(token_num))
+								shape = string.format("%s%s%s", shape:sub(1, point_start-1), new_point, shape:sub(token_end+1))
+								token_end = point_start + #new_point - 1
+							end
+							-- Reset point / prepare next one
+							point_start, typ, x = nil
+						end
+					end
+					-- Increase shape start position to next possible token
+					token_start = token_end + 1
 				end
-			end)
-			return new_shape
+			until not token_start
+			-- Return (modified) shape
+			return shape
 		end,
 		-- Converts shape curves to lines
 		flatten = function(shape)
@@ -874,16 +908,12 @@ Yutils = {
 					end
 				end
 				-- Check flatness on remaining vectors
-				if n < 2 then
-					return true
-				else
-					for i=1, n-1 do
-						if math.abs(Yutils.math.degree(vecs[i][1], vecs[i][2], 0, vecs[i+1][1], vecs[i+1][2], 0)) > tolerance then
-							return false
-						end
+				for i=2, n do
+					if math.abs(Yutils.math.degree(vecs[i-1][1], vecs[i-1][2], 0, vecs[i][1], vecs[i][2], 0)) > tolerance then
+						return false
 					end
-					return true
 				end
+				return true
 			end
 			-- Convert 4th degree curve to line points
 			local function curve4_to_lines(x0, y0, x1, y1, x2, y2, x3, y3)
@@ -906,40 +936,40 @@ Yutils = {
 				return pts
 			end
 			-- Search for curves
-			local search_pos = 1
-			while true do
-				-- Did find a curve chain beginning?
-				local curves_start, curves_end, x0, y0 = shape:find("(%-?%d+)%s+(%-?%d+)%s+b%s+", search_pos)
-				-- No curves
-				if not curves_start then
-					-- End curves search
-					break
+			local curves_start, curves_end, x0, y0 = 1
+			local curve_start, curve_end, x1, y1, x2, y2, x3, y3
+			local line_points, line_curve
+			repeat
+				curves_start, curves_end, x0, y0 = shape:find("([^%s]+)%s+([^%s]+)%s+b%s+", curves_start)
+				x0, y0 = tonumber(x0), tonumber(y0)
 				-- Curve(s) found!
-				else
-					-- Find end of curves chain
-					local curves_end = shape:find("[^%-%d%s]", curves_end)
-					if not curves_end then
-						curves_end = #shape
-					end
-					-- Get curves string
-					local curves_text = shape:sub(curves_start, curves_end)
-					-- Convert curves to lines
-					curves_text = curves_text:gsub("b", "l", 1)
-					local last_x, last_y = x0, y0
-					curves_text = curves_text:gsub("(%-?%d+)%s+(%-?%d+)%s+(%-?%d+)%s+(%-?%d+)%s+(%-?%d+)%s+(%-?%d+)", function(x1, y1, x2, y2, x3, y3)
-						local line_points = curve4_to_lines(last_x, last_y, x1, y1, x2, y2, x3, y3)
-						for i=1, #line_points do
-							line_points[i] = Yutils.math.round(tonumber(line_points[i]))
+				if x0 and y0 then
+					-- Replace curves type by lines type
+					shape = shape:sub(1, curves_start-1) .. shape:sub(curves_start):gsub("b", "l", 1)
+					-- Search for single curves
+					curve_start = curves_end + 1
+					repeat
+						curve_start, curve_end, x1, y1, x2, y2, x3, y3 = shape:find("([^%s]+)%s+([^%s]+)%s+([^%s]+)%s+([^%s]+)%s+([^%s]+)%s+([^%s]+)", curve_start)
+						x1, y1, x2, y2, x3, y3 = tonumber(x1), tonumber(y1), tonumber(x2), tonumber(y2), tonumber(x3), tonumber(y3)
+						if x1 and y1 and x2 and y2 and x3 and y3 then
+							-- Convert curve to lines
+							local line_points = curve4_to_lines(x0, y0, x1, y1, x2, y2, x3, y3)
+							for i=1, #line_points do
+								line_points[i] = roundf(line_points[i])
+							end
+							line_curve = table.concat(line_points, " ")
+							shape = string.format("%s%s%s", shape:sub(1, curve_start-1), line_curve, shape:sub(curve_end+1))
+							curve_end = curve_start + #line_curve - 1
+							-- Set next start point to current last point
+							x0, y0 = x3, y3
+							-- Increase search start position to next possible curve
+							curve_start = curve_end + 1
 						end
-						last_x, last_y = x3, y3
-						return table.concat(line_points, " ")
-					end)
-					-- Replace old curves in shape with new lines
-					shape = string.format("%s%s%s", shape:sub(1,curves_start-1), curves_text, shape:sub(curves_end+1))
-					-- Set start for next iteration behind the current found
-					search_pos = curves_end + 1
+					until not (x1 and y1 and x2 and y2 and x3 and y3)
+					-- Increase search start position to next possible curves
+					curves_start = curves_end + 1
 				end
-			end
+			until not (x0 and y0)
 			-- Return shape without curves
 			return shape
 		end,
@@ -950,21 +980,14 @@ Yutils = {
 				error("2 shapes and optional callback function expected", 2)
 			end
 			-- Trim destination shape to first figure
-			local _, find_end = dst_shape:find("^%s*m.-m")
-			if find_end then
-				dst_shape = dst_shape:sub(1, find_end - 1)
+			local _, figure_end = dst_shape:find("^%s*m.-m")
+			if figure_end then
+				dst_shape = dst_shape:sub(1, figure_end - 1)
 			end
-			-- Convert destination shape curves to lines (with upscale for precision)
-			local upscale = 64
-			local downscale = 1 / upscale
-			dst_shape = Yutils.shape.flatten(Yutils.shape.filter(dst_shape, function(x, y)
-				return x * upscale, y * upscale
-			end))
 			-- Collect destination shape/figure lines + lengths
 			local dst_lines, dst_lines_n = {}, 0
 			local dst_lines_length, dst_line, last_point = 0
-			Yutils.shape.filter(dst_shape, function(x, y)
-				x, y = x * downscale, y * downscale
+			Yutils.shape.filter(Yutils.shape.flatten(dst_shape), function(x, y)
 				if last_point then
 					dst_line = {last_point[1], last_point[2], x - last_point[1], y - last_point[2], Yutils.math.distance(x - last_point[1], y - last_point[2])}
 					if dst_line[5] > 0 then
@@ -1049,54 +1072,55 @@ Yutils = {
 					for cur_distance = distance_rest > 0 and distance_rest or max_len, distance, max_len do
 						pct = cur_distance / distance
 						lines_n = lines_n + 1
-						lines[lines_n] = string.format("%d %d ", x0 + rel_x * pct, y0 + rel_y * pct)
+						lines[lines_n] = string.format("%s %s", roundf(x0 + rel_x * pct), roundf(y0 + rel_y * pct))
 					end
-					return table.concat(lines):sub(1,-2)
+					return table.concat(lines, " ")
 				-- No line split
 				else
-					return string.format("%d %d", x1, y1)
+					return string.format("%s %s", roundf(x1), roundf(y1))
 				end
 			end
-			-- Split shape long lines to short ones
-			local line_mode, last_point, last_move = false
-			shape = shape:gsub("(%a?)(%s*)(%-?%d+)%s+(%-?%d+)", function(typ, space, x, y)
-				-- Output buffer
-				local result = ""
-				-- Close last figure
-				if typ == "m" and last_point and last_move and not (last_point[1] == last_move[1] and last_point[2] == last_move[2]) then
-					result = string.format("%s%s ", line_mode and "" or "l ", line_split(last_point[1], last_point[2], last_move[1], last_move[2]))
+			-- Build new shape with shorter lines
+			local new_shape, new_shape_n = {}, 0
+			local line_mode, last_point, last_move
+			Yutils.shape.filter(shape, function(x, y, typ)
+				-- Close last figure of new shape
+				if typ == "m" and last_move and not (last_point[1] == last_move[1] and last_point[2] == last_move[2]) then
+					if not line_mode then
+						new_shape_n = new_shape_n + 1
+						new_shape[new_shape_n] =  "l"
+					end
+					new_shape_n = new_shape_n + 1
+					new_shape[new_shape_n] = line_split(last_point[1], last_point[2], last_move[1], last_move[2])
 				end
-				-- Add current type and space to output
-				result = string.format("%s%s%s", result, typ, space)
+				-- Add current type to new shape
+				if typ then
+					new_shape_n = new_shape_n + 1
+					new_shape[new_shape_n] = typ
+				end
 				-- En-/disable line mode by current type
-				if typ ~= "" then
+				if typ then
 					line_mode = typ == "l"
 				end
-				-- Line with previous point?
-				if line_mode and last_point then
-					result = result .. line_split(last_point[1], last_point[2], x, y)
-				else
-					result = string.format("%s%d %d", result, x, y)
-				end
+				-- Add current point or splitted line to new shape
+				new_shape_n = new_shape_n + 1
+				new_shape[new_shape_n] = line_mode and last_point and line_split(last_point[1], last_point[2], x, y) or string.format("%s %s", roundf(x), roundf(y))
 				-- Update last point & move
 				last_point = {x, y}
 				if typ == "m" then
 					last_move = {x, y}
 				end
-				-- Return resulting point(s)
-				return result
 			end)
-			-- Close last figure of shape
-			if last_move then
-				shape = shape:gsub("(%-?%d+)%s+(%-?%d+)%s*$", function(x, y)
-					local result = string.format("%d %d", x, y)
-					if not (last_move[1] == x and last_move[2] == y) then
-						result = string.format("%s %s%s", result, line_mode and "" or "l ", line_split(x, y, last_move[1], last_move[2]))
-					end
-					return result
-				end, 1)
+			-- Close last figure of new shape
+			if last_move and not (last_point[1] == last_move[1] and last_point[2] == last_move[2]) then
+				if not line_mode then
+					new_shape_n = new_shape_n + 1
+					new_shape[new_shape_n] =  "l"
+				end
+				new_shape_n = new_shape_n + 1
+				new_shape[new_shape_n] = line_split(last_point[1], last_point[2], last_move[1], last_move[2])
 			end
-			return shape
+			return table.concat(new_shape, " ")
 		end,
 		-- Converts shape to stroke version
 		to_outline = function(shape, width)
@@ -1107,9 +1131,9 @@ Yutils = {
 			-- Collect figures
 			local figures, figures_n, figure, figure_n = {}, 0, {}, 0
 			local last_move
-			for typ, x, y in shape:gmatch("(%a?)%s*(%-?%d+)%s+(%-?%d+)") do
+			Yutils.shape.filter(shape, function(x, y, typ)
 				-- Check point type
-				if typ ~= "m" and typ ~= "l" and typ ~= "" then
+				if typ and not (typ == "m" or typ == "l") then
 					error("shape have to contain only \"moves\" and \"lines\"", 2)
 				end
 				-- New figure?
@@ -1134,7 +1158,7 @@ Yutils = {
 					figure_n = figure_n + 1
 					figure[figure_n] = {x, y}
 				end
-			end
+			end)
 			-- Insert last figure (with enough points)
 			if figure_n > 2 then
 				-- Last point equal to first point? (yes: remove him)
@@ -1197,18 +1221,18 @@ Yutils = {
 						local circ = math.abs(math.rad(degree)) * width
 						-- Add first edge point
 						outline_n = outline_n + 1
-						outline[outline_n] = string.format("%s%d %d",
+						outline[outline_n] = string.format("%s%s %s",
 																	outline_n == 1 and "m " or outline_n == 2 and "l " or "",
-																	Yutils.math.round(point[1] + o_vec1_x), Yutils.math.round(point[2] + o_vec1_y))
+																	roundf(point[1] + o_vec1_x), roundf(point[2] + o_vec1_y))
 						-- Round edge needed?
 						if circ > MAX_CIRCUMFERENCE then
 							local circ_rest = circ % MAX_CIRCUMFERENCE
 							for cur_circ = circ_rest > 0 and circ_rest or MAX_CIRCUMFERENCE, circ, MAX_CIRCUMFERENCE do
 								local curve_vec_x, curve_vec_y = rotate2d(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
 								outline_n = outline_n + 1
-								outline[outline_n] = string.format("%s%d %d",
+								outline[outline_n] = string.format("%s%s %s",
 																			outline_n == 1 and "m " or outline_n == 2 and "l " or "",
-																			Yutils.math.round(point[1] + curve_vec_x), Yutils.math.round(point[2] + curve_vec_y))
+																			roundf(point[1] + curve_vec_x), roundf(point[2] + curve_vec_y))
 							end
 						end
 					end
@@ -1225,9 +1249,13 @@ Yutils = {
 			if type(shape) ~= "string" then
 				error("shape expected", 2)
 			end
-			-- Scale values for later anti-aliasing
+			-- Scale values for supersampled rendering
 			local upscale = SUPERSAMPLING
 			local downscale = 1 / upscale
+			-- Upscale shape for later downsampling
+			shape = Yutils.shape.filter(shape, function(x, y)
+				return x * upscale, y * upscale
+			end)
 			-- Get shape bounding
 			local x1, y1, x2, y2 = Yutils.shape.bounding(shape)
 			if not y2 then
@@ -1238,12 +1266,9 @@ Yutils = {
 			shape = Yutils.shape.move(shape, shift_x, shift_y)
 			-- Renderer (on binary image with aliasing)
 			local function render_shape(width, height, image, shape)
-				-- Convert curves to lines
-				shape = Yutils.shape.flatten(shape)
 				-- Collect lines (points + vectors)
 				local lines, lines_n, last_point, last_move = {}, 0
-				for typ, x, y in shape:gmatch("(%a?)%s*(%-?%d+)%s+(%-?%d+)") do
-					x, y = tonumber(x), tonumber(y)
+				Yutils.shape.filter(Yutils.shape.flatten(shape), function(x, y, typ)
 					-- Move
 					if typ == "m" then
 						-- Close figure with non-horizontal line in image
@@ -1259,7 +1284,7 @@ Yutils = {
 					end
 					-- Remember last point
 					last_point = {x, y}
-				end
+				end)
 				-- Close last figure with non-horizontal line in image
 				if last_move and last_move[2] ~= last_point[2] and not (last_point[2] < 0 and last_move[2] < 0) and not (last_point[2] > height and last_move[2] > height) then
 					lines_n = lines_n + 1
@@ -1352,8 +1377,8 @@ Yutils = {
 				error("matrix transform method invalid", 2)
 			end
 			-- Filter shape with matrix
-			return Yutils.shape.filter(shape, function(cx, cy)
-				x, y, z, w = matrix.transform(cx, cy, 0)
+			return Yutils.shape.filter(shape, function(x, y)
+				x, y, z, w = matrix.transform(x, y, 0)
 				return x / w, y / w
 			end)
 		end
@@ -1567,7 +1592,6 @@ Yutils = {
 			-- Font scale values for increased size & later downscaling to produce floating point coordinates
 			local upscale = FONT_PRECISION
 			local downscale = 1 / upscale
-			local shapescale = downscale * 8
 			-- Body by operation system
 			if ffi.os == "Windows" then
 				-- Lua string in utf-8 to C string in utf-16
@@ -1607,7 +1631,7 @@ Yutils = {
 					4,	-- fdwOutputPrecision (4 = OUT_TT_PRECIS)
 					0,	-- fdwClipPrecision (0 = CLIP_DEFAULT_PRECIS)
 					4,	-- fdwQuality (4 = ANTIALIASED_QUALITY)
-					0,	-- fdwPitchAndFamily (0 = FF_DONTCARE)
+					0,	-- fdwPitchAndFamily (0 = DEFAULT_PITCH | FF_DONTCARE)
 					family
 				)
 				-- Set new font to device context
@@ -1692,8 +1716,8 @@ Yutils = {
 										shape[shape_n] = "m"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale * xscale)
-									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale * yscale)
+									shape[shape_n+1] = roundf(cur_point.x * downscale * xscale)
+									shape[shape_n+2] = roundf(cur_point.y * downscale * yscale)
 									shape_n = shape_n + 2
 									i = i + 1
 								elseif cur_type == 0x2 or cur_type == 0x3 then	-- 2 = PT_LINETO, 3 = PT_LINETO|PT_CLOSEFIGURE
@@ -1702,8 +1726,8 @@ Yutils = {
 										shape[shape_n] = "l"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale * xscale)
-									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale * yscale)
+									shape[shape_n+1] = roundf(cur_point.x * downscale * xscale)
+									shape[shape_n+2] = roundf(cur_point.y * downscale * yscale)
 									shape_n = shape_n + 2
 									i = i + 1
 								elseif cur_type == 0x4 or cur_type == 0x5 then	-- 4 = PT_BEZIERTO, 5 = PT_BEZIERTO|PT_CLOSEFIGURE
@@ -1712,12 +1736,12 @@ Yutils = {
 										shape[shape_n] = "b"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = Yutils.math.round(cur_point.x * shapescale * xscale)
-									shape[shape_n+2] = Yutils.math.round(cur_point.y * shapescale * yscale)
-									shape[shape_n+3] = Yutils.math.round(points[i+1].x * shapescale * xscale)
-									shape[shape_n+4] = Yutils.math.round(points[i+1].y * shapescale * yscale)
-									shape[shape_n+5] = Yutils.math.round(points[i+2].x * shapescale * xscale)
-									shape[shape_n+6] = Yutils.math.round(points[i+2].y * shapescale * yscale)
+									shape[shape_n+1] = roundf(cur_point.x * downscale * xscale)
+									shape[shape_n+2] = roundf(cur_point.y * downscale * yscale)
+									shape[shape_n+3] = roundf(points[i+1].x * downscale * xscale)
+									shape[shape_n+4] = roundf(points[i+1].y * downscale * yscale)
+									shape[shape_n+5] = roundf(points[i+2].x * downscale * xscale)
+									shape[shape_n+6] = roundf(points[i+2].y * downscale * yscale)
 									shape_n = shape_n + 6
 									i = i + 3
 								else	-- invalid type (should never happen, but let us be safe)
@@ -1798,7 +1822,7 @@ Yutils = {
 						end
 						-- Set text path to layout
 						script_lib.cairo_save(context)
-						script_lib.cairo_scale(context, shapescale * xscale, shapescale * yscale)
+						script_lib.cairo_scale(context, downscale * xscale, downscale * yscale)
 						script_lib.pango_layout_set_text(layout, text, -1)
 						script_lib.pango_cairo_layout_path(context, layout)
 						script_lib.cairo_restore(context)
@@ -1815,28 +1839,28 @@ Yutils = {
 										shape_n = shape_n + 1
 										shape[shape_n] = "m"
 									end
-									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x)
-									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y)
+									shape[shape_n+1] = roundf(path[0].data[i+1].point.x)
+									shape[shape_n+2] = roundf(path[0].data[i+1].point.y)
 									shape_n = shape_n + 2
 								elseif cur_type == ffi.C.CAIRO_PATH_LINE_TO then
 									if cur_type ~= last_type then
 										shape_n = shape_n + 1
 										shape[shape_n] = "l"
 									end
-									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x)
-									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y)
+									shape[shape_n+1] = roundf(path[0].data[i+1].point.x)
+									shape[shape_n+2] = roundf(path[0].data[i+1].point.y)
 									shape_n = shape_n + 2
 								elseif cur_type == ffi.C.CAIRO_PATH_CURVE_TO then
 									if cur_type ~= last_type then
 										shape_n = shape_n + 1
 										shape[shape_n] = "b"
 									end
-									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x)
-									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y)
-									shape[shape_n+3] = Yutils.math.round(path[0].data[i+2].point.x)
-									shape[shape_n+4] = Yutils.math.round(path[0].data[i+2].point.y)
-									shape[shape_n+5] = Yutils.math.round(path[0].data[i+3].point.x)
-									shape[shape_n+6] = Yutils.math.round(path[0].data[i+3].point.y)
+									shape[shape_n+1] = roundf(path[0].data[i+1].point.x)
+									shape[shape_n+2] = roundf(path[0].data[i+1].point.y)
+									shape[shape_n+3] = roundf(path[0].data[i+2].point.x)
+									shape[shape_n+4] = roundf(path[0].data[i+2].point.y)
+									shape[shape_n+5] = roundf(path[0].data[i+3].point.x)
+									shape[shape_n+6] = roundf(path[0].data[i+3].point.y)
 									shape_n = shape_n + 6
 								elseif cur_type == ffi.C.CAIRO_PATH_CLOSE_PATH then
 									if cur_type ~= last_type then

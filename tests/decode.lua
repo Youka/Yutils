@@ -10,7 +10,7 @@ print("Row size: " .. bmp.get_row_size())
 print("Packed data:\n" .. Yutils.table.tostring(bmp.get_data_packed()))
 print("Data text: " .. bmp.get_data_text())
 
-local font = Yutils.decode.create_font("Comic Sans MS", true, true, true, false, 24, 1, 1, 0.5)
+local font = Yutils.decode.create_font("Comic Sans MS", true, true, true, false, 64, 1, 1, 0.5)
 print("Metrics:\n" .. Yutils.table.tostring(font.metrics()))
 print("Extents:\n" .. Yutils.table.tostring(font.text_extents("TestのMy")))
 print("Text shape: " .. font.text_to_shape("TestのMy"))
