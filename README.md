@@ -17,3 +17,14 @@ Files:
 Docs:
 -----
 See tests and Yutils.lua first lines.
+
+TODO:
+-----
+* add shape.to_outline optional dimension size arguments
+* add math trim
+* remove get_* methods (renaming/merging)
+* split decode sublibrary to font & bitmap
+* add fonts list
+* add bitmap tracer
+* add ASS sublibrary (color/alpha conv, parser)
+* write detailed docs
