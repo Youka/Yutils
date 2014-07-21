@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 21th July 2014, 21:33 (GMT+1)
+	Version: 21th July 2014, 22:57 (GMT+1)
 	
 	Yutils
 		table
@@ -59,7 +59,7 @@
 			glue(src_shape, dst_shape[, transform_callback]) -> string
 			move(shape, x, y) -> string
 			split(shape, max_len) -> string
-			to_outline(shape, width) -> string
+			to_outline(shape, width_xy[, width_y]) -> string
 			to_pixels(shape) -> table
 			transform(shape, matrix) -> string
 		decode
@@ -1133,10 +1133,20 @@ Yutils = {
 			return table.concat(new_shape, " ")
 		end,
 		-- Converts shape to stroke version
-		to_outline = function(shape, width)
+		to_outline = function(shape, width_xy, width_y)
 			-- Check arguments
-			if type(shape) ~= "string" or type(width) ~= "number" or width <= 0 then
-				error("shape and line width expected", 2)
+			if type(shape) ~= "string" or type(width_xy) ~= "number" or width_xy < 0 or not (width_y == nil or type(width_y) == "number" and width_y >= 0) then
+				error("shape and line width (general or horizontal and vertical) expected", 2)
+			elseif width_y and not (width_xy > 0 or width_y > 0) or width_xy == 0 then
+				error("one width must be >0", 2)
+			end
+			-- Line width values
+			local width, xscale, yscale
+			if width_y and width_xy ~= width_y then
+				width = math.max(width_xy, width_y)
+				xscale, yscale = width_xy / width, width_y / width
+			else
+				width, xscale, yscale = width_xy, 1, 1
 			end
 			-- Collect figures
 			local figures, figures_n, figure, figure_n = {}, 0, {}, 0
@@ -1233,7 +1243,7 @@ Yutils = {
 						outline_n = outline_n + 1
 						outline[outline_n] = string.format("%s%s %s",
 																	outline_n == 1 and "m " or outline_n == 2 and "l " or "",
-																	roundf(point[1] + o_vec1_x), roundf(point[2] + o_vec1_y))
+																	roundf(point[1] + o_vec1_x * xscale), roundf(point[2] + o_vec1_y * yscale))
 						-- Round edge needed?
 						if circ > MAX_CIRCUMFERENCE then
 							local circ_rest = circ % MAX_CIRCUMFERENCE
@@ -1242,7 +1252,7 @@ Yutils = {
 								outline_n = outline_n + 1
 								outline[outline_n] = string.format("%s%s %s",
 																			outline_n == 1 and "m " or outline_n == 2 and "l " or "",
-																			roundf(point[1] + curve_vec_x), roundf(point[2] + curve_vec_y))
+																			roundf(point[1] + curve_vec_x * xscale), roundf(point[2] + curve_vec_y * yscale))
 							end
 						end
 					end
