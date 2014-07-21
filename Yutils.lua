@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 15th July 2014, 07:33 (GMT+1)
+	Version: 21th July 2014, 21:33 (GMT+1)
 	
 	Yutils
 		table
@@ -48,6 +48,7 @@
 			randomsteps(min, max, step) -> number
 			round(x) -> number
 			stretch(x, y, z, length) -> number, number, number
+			trim(x, min, max) -> number
 		algorithm
 			frames(starts, ends, dur) -> function
 			lines(text) -> function
@@ -745,6 +746,15 @@ Yutils = {
 				local factor = length / cur_length
 				return x * factor, y * factor, z * factor
 			end
+		end,
+		-- Trim number in range
+		trim = function(x, min, max)
+			-- Check arguments
+			if type(x) ~= "number" or type(min) ~= "number" or type(max) ~= "number" then
+				error("3 numbers expected", 2)
+			end
+			-- Limit number bigger-equal minimal value and smaller-equal maximal value
+			return x < min and min or x > max and max or x
 		end
 	},
 	-- Algorithm sublibrary
@@ -1299,10 +1309,6 @@ Yutils = {
 						end
 					end
 				end
-				-- Trims number in range
-				local function num_trim(x, min, max)
-					return x < min and min or x > max and max or x
-				end
 				-- Scan image rows in shape
 				local _, y1, _, y2 = Yutils.shape.bounding(shape)
 				for y = math.max(y1, 0), math.min(y2, height)-1 do
@@ -1313,7 +1319,7 @@ Yutils = {
 						local cx = line_x_hline(line[1], line[2], line[3], line[4], y + 0.5)
 						if cx then
 							row_stops_n = row_stops_n + 1
-							row_stops[row_stops_n] = {num_trim(cx, 0, width), line[4] > 0 and 1 or -1}	-- image trimmed stop position & line vertical direction
+							row_stops[row_stops_n] = {Yutils.math.trim(cx, 0, width), line[4] > 0 and 1 or -1}	-- image trimmed stop position & line vertical direction
 						end
 					end
 					-- Enough intersections / something to render?
@@ -1467,6 +1473,8 @@ Yutils = {
 			if not data or #data ~= data_size then
 				error("not enough data", 2)
 			end
+			-- All data read from file -> close handle (don't wait for GC)
+			file:close()
 			-- Calculate row size (round up to multiple of 4)
 			local row_size = math.floor((bit_depth * width + 31) / 32) * 4
 			-- Return bitmap object
