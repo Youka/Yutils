@@ -20,7 +20,6 @@ See tests and Yutils.lua first lines.
 
 TODO:
 -----
-* remove get_* methods (renaming/merging)
 * split decode sublibrary to font & bitmap
 * add fonts list
 * add bitmap tracer

@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 21th July 2014, 22:57 (GMT+1)
+	Version: 22th July 2014, 19:08 (GMT+1)
 	
 	Yutils
 		table
@@ -35,7 +35,7 @@
 			bezier(pct, pts) -> number, number, number
 			create_matrix() -> table
 				get_data() -> table
-				set_data(matrix)
+				set_data(matrix) -> table
 				identity() -> table
 				multiply(matrix2) -> table
 				translate(x, y, z) -> table
@@ -64,15 +64,15 @@
 			transform(shape, matrix) -> string
 		decode
 			create_bmp_reader(filename) -> table
-				get_file_size() -> number
-				get_width() -> number
-				get_height() -> number
-				get_bit_depth() -> number
-				get_data_size() -> number
-				get_row_size() -> number
-				get_data_raw() -> string
-				get_data_packed() -> table
-				get_data_text() -> string
+				file_size() -> number
+				width() -> number
+				height() -> number
+				bit_depth() -> number
+				data_size() -> number
+				row_size() -> number
+				data_raw() -> string
+				data_packed() -> table
+				data_text() -> string
 			create_font(font, bold, italic, underline, strikeout, size[, xscale, yscale, hspace]) -> table
 				metrics() -> table
 				text_extents(text) -> table
@@ -94,6 +94,25 @@ if ffi.os == "Windows" then
 	-- WinGDI already loaded in C namespace by default
 	-- Set C definitions for WinAPI
 	ffi.cdef([[
+enum{CP_UTF8 = 65001};
+enum{MM_TEXT = 1};
+enum{TRANSPARENT = 1};
+enum{
+	FW_NORMAL = 400,
+	FW_BOLD = 700
+};
+enum{DEFAULT_CHARSET = 1};
+enum{OUT_TT_PRECIS = 4};
+enum{CLIP_DEFAULT_PRECIS = 0};
+enum{ANTIALIASED_QUALITY = 4};
+enum{DEFAULT_PITCH = 0x0};
+enum{FF_DONTCARE = 0x0};
+enum{
+	PT_MOVETO = 0x6,
+	PT_LINETO = 0x2,
+	PT_BEZIERTO = 0x4,
+	PT_CLOSEFIGURE = 0x1
+};
 typedef unsigned int UINT;
 typedef unsigned long DWORD;
 typedef const char* LPCSTR;
@@ -183,6 +202,7 @@ typedef void cairo_surface_t;
 typedef void cairo_t;
 typedef void PangoLayout;
 typedef void* gpointer;
+static const int PANGO_SCALE = 1024;
 typedef void PangoFontDescription;
 typedef enum{
 	PANGO_WEIGHT_THIN	= 100,
@@ -1490,28 +1510,28 @@ Yutils = {
 			-- Return bitmap object
 			local obj
 			obj = {
-				get_file_size = function()
+				file_size = function()
 					return file_size
 				end,
-				get_width = function()
+				width = function()
 					return width
 				end,
-				get_height = function()
+				height = function()
 					return height
 				end,
-				get_bit_depth = function()
+				bit_depth = function()
 					return bit_depth
 				end,
-				get_data_size = function()
+				data_size = function()
 					return data_size
 				end,
-				get_row_size = function()
+				row_size = function()
 					return row_size
 				end,
-				get_data_raw = function()
+				data_raw = function()
 					return data
 				end,
-				get_data_packed = function()
+				data_packed = function()
 					local data_packed, data_packed_n = {}, 0
 					local first_row, last_row, row_step
 					if height < 0 then
@@ -1552,8 +1572,8 @@ Yutils = {
 					end
 					return data_packed
 				end,
-				get_data_text = function()
-					local data_pack, text, text_n = obj.get_data_packed(), {"{\\bord0\\shad0\\an7\\p1}"}, 1
+				data_text = function()
+					local data_pack, text, text_n = obj.data_packed(), {"{\\bord0\\shad0\\an7\\p1}"}, 1
 					local x, y, off_x, chunk_size, color1, color2 = 0, 0, 0
 					local i, n = 1, #data_pack
 					while i <= n do
@@ -1615,11 +1635,11 @@ Yutils = {
 				-- Lua string in utf-8 to C string in utf-16
 				local function utf8_to_utf16(s)
 					-- Get resulting utf16 characters number (+ null-termination)
-					local wlen = ffi.C.MultiByteToWideChar(65001, 0x0, s, -1, nil, 0)	-- 65001 = CP_UTF8
+					local wlen = ffi.C.MultiByteToWideChar(ffi.C.CP_UTF8, 0x0, s, -1, nil, 0)
 					-- Allocate array for utf16 characters storage
 					local ws = ffi.new("wchar_t[?]", wlen)
 					-- Convert utf8 string to utf16 characters
-					ffi.C.MultiByteToWideChar(65001, 0x0, s, -1, ws, wlen)
+					ffi.C.MultiByteToWideChar(ffi.C.CP_UTF8, 0x0, s, -1, ws, wlen)
 					-- Return utf16 C string
 					return ws
 				end
@@ -1627,9 +1647,9 @@ Yutils = {
 				local resources_deleter
 				local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), function() resources_deleter() end)
 				-- Set context coordinates mapping mode
-				ffi.C.SetMapMode(dc, 1)	-- 1 = MM_TEXT
+				ffi.C.SetMapMode(dc, ffi.C.MM_TEXT)
 				-- Set context backgrounds to transparent
-				ffi.C.SetBkMode(dc, 1)	-- 1 = TRANSPARENT
+				ffi.C.SetBkMode(dc, ffi.C.TRANSPARENT)
 				-- Convert family from utf8 to utf16
 				family = utf8_to_utf16(family)
 				if ffi.C.wcslen(family) > 31 then
@@ -1641,15 +1661,15 @@ Yutils = {
 					0,	-- nWidth
 					0,	-- nEscapement
 					0,	-- nOrientation
-					bold and 700 or 400,	-- fnWeight (700 = FW_BOLD, 400 = FW_NORMAL)
+					bold and ffi.C.FW_BOLD or ffi.C.FW_NORMAL,	-- fnWeight
 					italic and 1 or 0,	-- fdwItalic
 					underline and 1 or 0,	--fdwUnderline
 					strikeout and 1 or 0,	-- fdwStrikeOut
-					1,	-- fdwCharSet (1 = DEFAULT_CHARSET)
-					4,	-- fdwOutputPrecision (4 = OUT_TT_PRECIS)
-					0,	-- fdwClipPrecision (0 = CLIP_DEFAULT_PRECIS)
-					4,	-- fdwQuality (4 = ANTIALIASED_QUALITY)
-					0,	-- fdwPitchAndFamily (0 = DEFAULT_PITCH | FF_DONTCARE)
+					ffi.C.DEFAULT_CHARSET,	-- fdwCharSet
+					ffi.C.OUT_TT_PRECIS,	-- fdwOutputPrecision
+					ffi.C.CLIP_DEFAULT_PRECIS,	-- fdwClipPrecision
+					ffi.C.ANTIALIASED_QUALITY,	-- fdwQuality
+					ffi.C.DEFAULT_PITCH + ffi.C.FF_DONTCARE,	-- fdwPitchAndFamily
 					family
 				)
 				-- Set new font to device context
@@ -1728,8 +1748,8 @@ Yutils = {
 							local i, last_type, cur_type, cur_point = 0
 							while i < points_n do
 								cur_type, cur_point = types[i], points[i]
-								if cur_type == 0x6 then	-- 6 = PT_MOVETO
-									if last_type ~= 0x6 then
+								if cur_type == ffi.C.PT_MOVETO then
+									if last_type ~= ffi.C.PT_MOVETO then
 										shape_n = shape_n + 1
 										shape[shape_n] = "m"
 										last_type = cur_type
@@ -1738,8 +1758,8 @@ Yutils = {
 									shape[shape_n+2] = roundf(cur_point.y * downscale * yscale)
 									shape_n = shape_n + 2
 									i = i + 1
-								elseif cur_type == 0x2 or cur_type == 0x3 then	-- 2 = PT_LINETO, 3 = PT_LINETO|PT_CLOSEFIGURE
-									if last_type ~= 0x2 then
+								elseif cur_type == ffi.C.PT_LINETO or cur_type == (ffi.C.PT_LINETO + ffi.C.PT_CLOSEFIGURE) then
+									if last_type ~= ffi.C.PT_LINETO then
 										shape_n = shape_n + 1
 										shape[shape_n] = "l"
 										last_type = cur_type
@@ -1748,8 +1768,8 @@ Yutils = {
 									shape[shape_n+2] = roundf(cur_point.y * downscale * yscale)
 									shape_n = shape_n + 2
 									i = i + 1
-								elseif cur_type == 0x4 or cur_type == 0x5 then	-- 4 = PT_BEZIERTO, 5 = PT_BEZIERTO|PT_CLOSEFIGURE
-									if last_type ~= 0x4 then
+								elseif cur_type == ffi.C.PT_BEZIERTO or cur_type == (ffi.C.PT_BEZIERTO + ffi.C.PT_CLOSEFIGURE) then
+									if last_type ~= ffi.C.PT_BEZIERTO then
 										shape_n = shape_n + 1
 										shape[shape_n] = "b"
 										last_type = cur_type
@@ -1792,12 +1812,12 @@ Yutils = {
 				script_lib.pango_font_description_set_family(font_desc, family)
 				script_lib.pango_font_description_set_weight(font_desc, bold and ffi.C.PANGO_WEIGHT_BOLD or ffi.C.PANGO_WEIGHT_NORMAL)
 				script_lib.pango_font_description_set_style(font_desc, italic and ffi.C.PANGO_STYLE_ITALIC or ffi.C.PANGO_STYLE_NORMAL)
-				script_lib.pango_font_description_set_absolute_size(font_desc, size * 1024 --[[PANGO_SCALE]] * upscale)
+				script_lib.pango_font_description_set_absolute_size(font_desc, size * ffi.C.PANGO_SCALE * upscale)
 				script_lib.pango_layout_set_font_description(layout, font_desc)
 				local attr = ffi.gc(script_lib.pango_attr_list_new(), script_lib.pango_attr_list_unref)
 				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_underline_new(underline and ffi.C.PANGO_UNDERLINE_SINGLE or ffi.C.PANGO_UNDERLINE_NONE))
 				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_strikethrough_new(strikeout))
-				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_letter_spacing_new(hspace * 1024 * upscale))
+				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_letter_spacing_new(hspace * ffi.C.PANGO_SCALE * upscale))
 				script_lib.pango_layout_set_attributes(layout, attr)
 				-- Return font object
 				return {
@@ -1806,14 +1826,14 @@ Yutils = {
 						local context = script_lib.pango_layout_get_context(layout)
 						local font_desc = script_lib.pango_layout_get_font_description(layout)
 						local metrics = ffi.gc(script_lib.pango_context_get_metrics(context, font_desc, nil), script_lib.pango_font_metrics_unref)
-						local ascent, descent = script_lib.pango_font_metrics_get_ascent(metrics) / 1024 * downscale,
-												script_lib.pango_font_metrics_get_descent(metrics) / 1024 * downscale
+						local ascent, descent = script_lib.pango_font_metrics_get_ascent(metrics) / ffi.C.PANGO_SCALE * downscale,
+												script_lib.pango_font_metrics_get_descent(metrics) / ffi.C.PANGO_SCALE * downscale
 						return {
 							height = (ascent + descent) * yscale,
 							ascent = ascent * yscale,
 							descent = descent * yscale,
 							internal_leading = 0,
-							external_leading = script_lib.pango_layout_get_spacing(layout) / 1024 * downscale * yscale
+							external_leading = script_lib.pango_layout_get_spacing(layout) / ffi.C.PANGO_SCALE * downscale * yscale
 						}
 					end,
 					-- Get text extents
