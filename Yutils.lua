@@ -1877,16 +1877,18 @@ Yutils = {
 				pangocairo.pango_attr_list_insert(attr, pangocairo.pango_attr_letter_spacing_new(hspace * ffi.C.PANGO_SCALE * upscale))
 				pangocairo.pango_layout_set_attributes(layout, attr)
 				-- Scale factor for resulting font data
-				local fonthack_scale = LIBASS_FONTHACK and
-											size / ((pangocairo.pango_font_metrics_get_ascent(metrics) + pangocairo.pango_font_metrics_get_descent(metrics)) / ffi.C.PANGO_SCALE * downscale) or
-											1
+				local fonthack_scale
+				if LIBASS_FONTHACK then
+					local metrics = ffi.gc(pangocairo.pango_context_get_metrics(pangocairo.pango_layout_get_context(layout), pangocairo.pango_layout_get_font_description(layout), nil), pangocairo.pango_font_metrics_unref)
+					fonthack_scale = size / ((pangocairo.pango_font_metrics_get_ascent(metrics) + pangocairo.pango_font_metrics_get_descent(metrics)) / ffi.C.PANGO_SCALE * downscale)
+				else
+					fonthack_scale = 1
+				end
 				-- Return font object
 				return {
 					-- Get font metrics
 					metrics = function()
-						local context = pangocairo.pango_layout_get_context(layout)
-						local font_desc = pangocairo.pango_layout_get_font_description(layout)
-						local metrics = ffi.gc(pangocairo.pango_context_get_metrics(context, font_desc, nil), pangocairo.pango_font_metrics_unref)
+						local metrics = ffi.gc(pangocairo.pango_context_get_metrics(pangocairo.pango_layout_get_context(layout), pangocairo.pango_layout_get_font_description(layout), nil), pangocairo.pango_font_metrics_unref)
 						local ascent, descent = pangocairo.pango_font_metrics_get_ascent(metrics) / ffi.C.PANGO_SCALE * downscale,
 												pangocairo.pango_font_metrics_get_descent(metrics) / ffi.C.PANGO_SCALE * downscale
 						return {
