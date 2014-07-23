@@ -20,8 +20,7 @@ See tests and Yutils.lua first lines.
 
 TODO:
 -----
-* split decode sublibrary to font & bitmap
 * add fonts list
-* add bitmap tracer
+* add bitmap/data field tracer
 * add ASS sublibrary (color/alpha conv, parser)
 * write detailed docs

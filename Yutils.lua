@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 22th July 2014, 19:08 (GMT+1)
+	Version: 23th July 2014, 12:00 (GMT+1)
 	
 	Yutils
 		table
@@ -85,6 +85,7 @@ local CURVE_TOLERANCE = 1	-- Angle in degree to define a curve as flat
 local MAX_CIRCUMFERENCE = 1.5	-- Circumference step size to create round edges out of lines
 local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
 local FONT_PRECISION = 64	-- Font scale for better precision output from native font system
+local LIBASS_FONTHACK = false	-- Scale font data to fontsize (no effect on windows)
 
 -- Load FFI interface
 local ffi = require("ffi")
@@ -1819,6 +1820,10 @@ Yutils = {
 				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_strikethrough_new(strikeout))
 				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_letter_spacing_new(hspace * ffi.C.PANGO_SCALE * upscale))
 				script_lib.pango_layout_set_attributes(layout, attr)
+				-- Scale factor for resulting font data
+				local fonthack_scale = LIBASS_FONTHACK and
+											size / ((script_lib.pango_font_metrics_get_ascent(metrics) + script_lib.pango_font_metrics_get_descent(metrics)) / ffi.C.PANGO_SCALE * downscale) or
+											1
 				-- Return font object
 				return {
 					-- Get font metrics
@@ -1829,11 +1834,11 @@ Yutils = {
 						local ascent, descent = script_lib.pango_font_metrics_get_ascent(metrics) / ffi.C.PANGO_SCALE * downscale,
 												script_lib.pango_font_metrics_get_descent(metrics) / ffi.C.PANGO_SCALE * downscale
 						return {
-							height = (ascent + descent) * yscale,
-							ascent = ascent * yscale,
-							descent = descent * yscale,
+							height = (ascent + descent) * yscale * fonthack_scale,
+							ascent = ascent * yscale * fonthack_scale,
+							descent = descent * yscale * fonthack_scale,
 							internal_leading = 0,
-							external_leading = script_lib.pango_layout_get_spacing(layout) / ffi.C.PANGO_SCALE * downscale * yscale
+							external_leading = script_lib.pango_layout_get_spacing(layout) / ffi.C.PANGO_SCALE * downscale * yscale * fonthack_scale
 						}
 					end,
 					-- Get text extents
@@ -1848,8 +1853,8 @@ Yutils = {
 						local rect = ffi.new("PangoRectangle[1]")
 						script_lib.pango_layout_get_pixel_extents(layout, nil, rect)
 						return {
-							width = rect[0].width * downscale * xscale,
-							height = rect[0].height * downscale * yscale
+							width = rect[0].width * downscale * xscale * fonthack_scale,
+							height = rect[0].height * downscale * yscale * fonthack_scale
 						}
 					end,
 					-- Converts text to ASS shape
@@ -1860,7 +1865,7 @@ Yutils = {
 						end
 						-- Set text path to layout
 						script_lib.cairo_save(context)
-						script_lib.cairo_scale(context, downscale * xscale, downscale * yscale)
+						script_lib.cairo_scale(context, downscale * xscale * fonthack_scale, downscale * yscale * fonthack_scale)
 						script_lib.pango_layout_set_text(layout, text, -1)
 						script_lib.pango_cairo_layout_path(context, layout)
 						script_lib.cairo_restore(context)
