@@ -20,7 +20,7 @@ See tests and Yutils.lua first lines.
 
 TODO:
 -----
-* add fonts list
+* add fonts list (Unix)
 * add bitmap/data field tracer
 * add ASS sublibrary (color/alpha conv, parser)
 * write detailed docs

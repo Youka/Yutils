@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 23th July 2014, 12:00 (GMT+1)
+	Version: 23th July 2014, 12:30 (GMT+1)
 	
 	Yutils
 		table
@@ -77,6 +77,7 @@
 				metrics() -> table
 				text_extents(text) -> table
 				text_to_shape(text) -> string
+			list_fonts(with_filenames) -> table
 ]]
 
 -- Configuration
@@ -90,9 +91,11 @@ local LIBASS_FONTHACK = false	-- Scale font data to fontsize (no effect on windo
 -- Load FFI interface
 local ffi = require("ffi")
 -- Check OS & load fitting complex scripting library
-local script_lib
+local pangocairo, advapi
 if ffi.os == "Windows" then
 	-- WinGDI already loaded in C namespace by default
+	-- Load advanced winapi library
+	advapi = ffi.load("Advapi32.dll")
 	-- Set C definitions for WinAPI
 	ffi.cdef([[
 enum{CP_UTF8 = 65001};
@@ -116,18 +119,26 @@ enum{
 };
 typedef unsigned int UINT;
 typedef unsigned long DWORD;
+typedef DWORD* LPDWORD;
 typedef const char* LPCSTR;
+typedef const wchar_t* LPCWSTR;
 typedef wchar_t* LPWSTR;
+typedef char* LPSTR;
 typedef void* HANDLE;
 typedef HANDLE HDC;
 typedef int BOOL;
+typedef BOOL* LPBOOL;
 typedef unsigned int size_t;
 typedef HANDLE HFONT;
-typedef const wchar_t* LPCWSTR;
 typedef HANDLE HGDIOBJ;
 typedef long LONG;
 typedef wchar_t WCHAR;
 typedef unsigned char BYTE;
+typedef BYTE* LPBYTE;
+typedef int INT;
+typedef long LPARAM;
+static const int LF_FACESIZE = 32;
+static const int LF_FULLFACESIZE = 64;
 typedef struct{
 	LONG tmHeight;
 	LONG tmAscent;
@@ -161,14 +172,46 @@ typedef struct{
 	LONG bottom;
 }RECT;
 typedef const RECT* LPCRECT;
-typedef int INT;
 typedef struct{
 	LONG x;
 	LONG y;
 }POINT, *LPPOINT;
-typedef BYTE* PBYTE;
+typedef struct{
+  LONG  lfHeight;
+  LONG  lfWidth;
+  LONG  lfEscapement;
+  LONG  lfOrientation;
+  LONG  lfWeight;
+  BYTE  lfItalic;
+  BYTE  lfUnderline;
+  BYTE  lfStrikeOut;
+  BYTE  lfCharSet;
+  BYTE  lfOutPrecision;
+  BYTE  lfClipPrecision;
+  BYTE  lfQuality;
+  BYTE  lfPitchAndFamily;
+  WCHAR lfFaceName[LF_FACESIZE];
+}LOGFONTW, *LPLOGFONTW;
+typedef struct{
+  LOGFONTW elfLogFont;
+  WCHAR   elfFullName[LF_FULLFACESIZE];
+  WCHAR   elfStyle[LF_FACESIZE];
+  WCHAR   elfScript[LF_FACESIZE];
+}ENUMLOGFONTEXW, *LPENUMLOGFONTEXW;
+enum{
+	FONTTYPE_RASTER = 1,
+	FONTTYPE_DEVICE = 2,
+	FONTTYPE_TRUETYPE = 4
+};
+typedef int (__stdcall *FONTENUMPROC)(const ENUMLOGFONTEXW*, const void*, DWORD, LPARAM);
+enum{ERROR_SUCCESS = 0};
+typedef HANDLE HKEY;
+typedef HKEY* PHKEY;
+enum{HKEY_LOCAL_MACHINE = 0x80000002};
+typedef enum{KEY_READ = 0x20019}REGSAM;
 
 int MultiByteToWideChar(UINT, DWORD, LPCSTR, int, LPWSTR, int);
+int WideCharToMultiByte(UINT, DWORD, LPCWSTR, int, LPSTR, int, LPCSTR, LPBOOL);
 HDC CreateCompatibleDC(HDC);
 BOOL DeleteDC(HDC);
 int SetMapMode(HDC, int);
@@ -182,12 +225,16 @@ BOOL GetTextExtentPoint32W(HDC, LPCWSTR, int, LPSIZE);
 BOOL BeginPath(HDC);
 BOOL ExtTextOutW(HDC, int, int, UINT, LPCRECT, LPCWSTR, UINT, const INT*);
 BOOL EndPath(HDC);
-int GetPath(HDC, LPPOINT, PBYTE, int);
+int GetPath(HDC, LPPOINT, LPBYTE, int);
 BOOL AbortPath(HDC);
+int EnumFontFamiliesExW(HDC, LPLOGFONTW, FONTENUMPROC, LPARAM, DWORD);
+LONG RegOpenKeyExA(HKEY, LPCSTR, DWORD, REGSAM, PHKEY);
+LONG RegCloseKey(HKEY);
+LONG RegEnumValueW(HKEY, DWORD, LPWSTR, LPDWORD, LPDWORD, LPDWORD, LPBYTE, LPDWORD);
 	]])
 else	-- Unix
 	-- Load pangocairo library
-	script_lib = ffi.load("libpangocairo-1.0.so")
+	pangocairo = ffi.load("libpangocairo-1.0.so")
 	-- Set C definitions for Pangocairo
 	ffi.cdef([[
 typedef enum{
@@ -316,7 +363,7 @@ void cairo_path_destroy(cairo_path_t*);
 	]])
 end
 
--- Helper functions (better performance than library members)
+-- Helper functions
 local function roundf(x)
 	return math.floor(x * FP_PRECISION) / FP_PRECISION
 end
@@ -324,6 +371,26 @@ local function rotate2d(x, y, angle)
 	local ra = math.rad(angle)
 	return math.cos(ra)*x - math.sin(ra)*y,
 		math.sin(ra)*x + math.cos(ra)*y
+end
+local function utf8_to_utf16(s)
+	-- Get resulting utf16 characters number (+ null-termination)
+	local wlen = ffi.C.MultiByteToWideChar(ffi.C.CP_UTF8, 0x0, s, -1, nil, 0)
+	-- Allocate array for utf16 characters storage
+	local ws = ffi.new("wchar_t[?]", wlen)
+	-- Convert utf8 string to utf16 characters
+	ffi.C.MultiByteToWideChar(ffi.C.CP_UTF8, 0x0, s, -1, ws, wlen)
+	-- Return utf16 C string
+	return ws
+end
+local function utf16_to_utf8(ws)
+	-- Get resulting utf8 characters number (+ null-termination)
+	local slen = ffi.C.WideCharToMultiByte(ffi.C.CP_UTF8, 0x0, ws, -1, nil, 0, nil, nil)
+	-- Allocate array for utf8 characters storage
+	local s = ffi.new("char[?]", slen)
+	-- Convert utf16 string to utf8 characters
+	ffi.C.WideCharToMultiByte(ffi.C.CP_UTF8, 0x0, ws, -1, s, slen, nil, nil)
+	-- Return utf8 Lua string
+	return ffi.string(s)
 end
 
 -- Create library table
@@ -1633,17 +1700,6 @@ Yutils = {
 			local downscale = 1 / upscale
 			-- Body by operation system
 			if ffi.os == "Windows" then
-				-- Lua string in utf-8 to C string in utf-16
-				local function utf8_to_utf16(s)
-					-- Get resulting utf16 characters number (+ null-termination)
-					local wlen = ffi.C.MultiByteToWideChar(ffi.C.CP_UTF8, 0x0, s, -1, nil, 0)
-					-- Allocate array for utf16 characters storage
-					local ws = ffi.new("wchar_t[?]", wlen)
-					-- Convert utf8 string to utf16 characters
-					ffi.C.MultiByteToWideChar(ffi.C.CP_UTF8, 0x0, s, -1, ws, wlen)
-					-- Return utf16 C string
-					return ws
-				end
 				-- Create device context and set light resources deleter
 				local resources_deleter
 				local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), function() resources_deleter() end)
@@ -1800,45 +1856,45 @@ Yutils = {
 				}
 			else	-- Unix
 				-- Create surface, context & layout
-				local surface = script_lib.cairo_image_surface_create(ffi.C.CAIRO_FORMAT_A8, 1, 1)
-				local context = script_lib.cairo_create(surface)
+				local surface = pangocairo.cairo_image_surface_create(ffi.C.CAIRO_FORMAT_A8, 1, 1)
+				local context = pangocairo.cairo_create(surface)
 				local layout
-				layout = ffi.gc(script_lib.pango_cairo_create_layout(context), function()
-					script_lib.g_object_unref(layout)
-					script_lib.cairo_destroy(context)
-					script_lib.cairo_surface_destroy(surface)
+				layout = ffi.gc(pangocairo.pango_cairo_create_layout(context), function()
+					pangocairo.g_object_unref(layout)
+					pangocairo.cairo_destroy(context)
+					pangocairo.cairo_surface_destroy(surface)
 				end)
 				-- Set font to layout
-				local font_desc = ffi.gc(script_lib.pango_font_description_new(), script_lib.pango_font_description_free)
-				script_lib.pango_font_description_set_family(font_desc, family)
-				script_lib.pango_font_description_set_weight(font_desc, bold and ffi.C.PANGO_WEIGHT_BOLD or ffi.C.PANGO_WEIGHT_NORMAL)
-				script_lib.pango_font_description_set_style(font_desc, italic and ffi.C.PANGO_STYLE_ITALIC or ffi.C.PANGO_STYLE_NORMAL)
-				script_lib.pango_font_description_set_absolute_size(font_desc, size * ffi.C.PANGO_SCALE * upscale)
-				script_lib.pango_layout_set_font_description(layout, font_desc)
-				local attr = ffi.gc(script_lib.pango_attr_list_new(), script_lib.pango_attr_list_unref)
-				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_underline_new(underline and ffi.C.PANGO_UNDERLINE_SINGLE or ffi.C.PANGO_UNDERLINE_NONE))
-				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_strikethrough_new(strikeout))
-				script_lib.pango_attr_list_insert(attr, script_lib.pango_attr_letter_spacing_new(hspace * ffi.C.PANGO_SCALE * upscale))
-				script_lib.pango_layout_set_attributes(layout, attr)
+				local font_desc = ffi.gc(pangocairo.pango_font_description_new(), pangocairo.pango_font_description_free)
+				pangocairo.pango_font_description_set_family(font_desc, family)
+				pangocairo.pango_font_description_set_weight(font_desc, bold and ffi.C.PANGO_WEIGHT_BOLD or ffi.C.PANGO_WEIGHT_NORMAL)
+				pangocairo.pango_font_description_set_style(font_desc, italic and ffi.C.PANGO_STYLE_ITALIC or ffi.C.PANGO_STYLE_NORMAL)
+				pangocairo.pango_font_description_set_absolute_size(font_desc, size * ffi.C.PANGO_SCALE * upscale)
+				pangocairo.pango_layout_set_font_description(layout, font_desc)
+				local attr = ffi.gc(pangocairo.pango_attr_list_new(), pangocairo.pango_attr_list_unref)
+				pangocairo.pango_attr_list_insert(attr, pangocairo.pango_attr_underline_new(underline and ffi.C.PANGO_UNDERLINE_SINGLE or ffi.C.PANGO_UNDERLINE_NONE))
+				pangocairo.pango_attr_list_insert(attr, pangocairo.pango_attr_strikethrough_new(strikeout))
+				pangocairo.pango_attr_list_insert(attr, pangocairo.pango_attr_letter_spacing_new(hspace * ffi.C.PANGO_SCALE * upscale))
+				pangocairo.pango_layout_set_attributes(layout, attr)
 				-- Scale factor for resulting font data
 				local fonthack_scale = LIBASS_FONTHACK and
-											size / ((script_lib.pango_font_metrics_get_ascent(metrics) + script_lib.pango_font_metrics_get_descent(metrics)) / ffi.C.PANGO_SCALE * downscale) or
+											size / ((pangocairo.pango_font_metrics_get_ascent(metrics) + pangocairo.pango_font_metrics_get_descent(metrics)) / ffi.C.PANGO_SCALE * downscale) or
 											1
 				-- Return font object
 				return {
 					-- Get font metrics
 					metrics = function()
-						local context = script_lib.pango_layout_get_context(layout)
-						local font_desc = script_lib.pango_layout_get_font_description(layout)
-						local metrics = ffi.gc(script_lib.pango_context_get_metrics(context, font_desc, nil), script_lib.pango_font_metrics_unref)
-						local ascent, descent = script_lib.pango_font_metrics_get_ascent(metrics) / ffi.C.PANGO_SCALE * downscale,
-												script_lib.pango_font_metrics_get_descent(metrics) / ffi.C.PANGO_SCALE * downscale
+						local context = pangocairo.pango_layout_get_context(layout)
+						local font_desc = pangocairo.pango_layout_get_font_description(layout)
+						local metrics = ffi.gc(pangocairo.pango_context_get_metrics(context, font_desc, nil), pangocairo.pango_font_metrics_unref)
+						local ascent, descent = pangocairo.pango_font_metrics_get_ascent(metrics) / ffi.C.PANGO_SCALE * downscale,
+												pangocairo.pango_font_metrics_get_descent(metrics) / ffi.C.PANGO_SCALE * downscale
 						return {
 							height = (ascent + descent) * yscale * fonthack_scale,
 							ascent = ascent * yscale * fonthack_scale,
 							descent = descent * yscale * fonthack_scale,
 							internal_leading = 0,
-							external_leading = script_lib.pango_layout_get_spacing(layout) / ffi.C.PANGO_SCALE * downscale * yscale * fonthack_scale
+							external_leading = pangocairo.pango_layout_get_spacing(layout) / ffi.C.PANGO_SCALE * downscale * yscale * fonthack_scale
 						}
 					end,
 					-- Get text extents
@@ -1848,10 +1904,10 @@ Yutils = {
 							error("text expected", 2)
 						end
 						-- Set text to layout
-						script_lib.pango_layout_set_text(layout, text, -1)
+						pangocairo.pango_layout_set_text(layout, text, -1)
 						-- Get text extents with this font
 						local rect = ffi.new("PangoRectangle[1]")
-						script_lib.pango_layout_get_pixel_extents(layout, nil, rect)
+						pangocairo.pango_layout_get_pixel_extents(layout, nil, rect)
 						return {
 							width = rect[0].width * downscale * xscale * fonthack_scale,
 							height = rect[0].height * downscale * yscale * fonthack_scale
@@ -1864,15 +1920,15 @@ Yutils = {
 							error("text expected", 2)
 						end
 						-- Set text path to layout
-						script_lib.cairo_save(context)
-						script_lib.cairo_scale(context, downscale * xscale * fonthack_scale, downscale * yscale * fonthack_scale)
-						script_lib.pango_layout_set_text(layout, text, -1)
-						script_lib.pango_cairo_layout_path(context, layout)
-						script_lib.cairo_restore(context)
+						pangocairo.cairo_save(context)
+						pangocairo.cairo_scale(context, downscale * xscale * fonthack_scale, downscale * yscale * fonthack_scale)
+						pangocairo.pango_layout_set_text(layout, text, -1)
+						pangocairo.pango_cairo_layout_path(context, layout)
+						pangocairo.cairo_restore(context)
 						-- Initialize shape as table
 						local shape, shape_n = {}, 0
 						-- Convert path to shape
-						local path = ffi.gc(script_lib.cairo_copy_path(context), script_lib.cairo_path_destroy)
+						local path = ffi.gc(pangocairo.cairo_copy_path(context), pangocairo.cairo_path_destroy)
 						if(path[0].status == ffi.C.CAIRO_STATUS_SUCCESS) then
 							local i, cur_type, last_type = 0
 							while(i < path[0].num_data) do
@@ -1915,11 +1971,110 @@ Yutils = {
 								i = i + path[0].data[i].header.length
 							end
 						end
-						script_lib.cairo_new_path(context)
+						pangocairo.cairo_new_path(context)
 						return table.concat(shape, " ")
 					end
 				}
 			end
+		end,
+		-- Lists available system fonts
+		list_fonts = function(with_filenames)
+			-- Check argument
+			if with_filenames ~= nil and type(with_filenames) ~= "boolean" then
+				error("optional boolean expected", 2)
+			end
+			-- Output fonts buffer
+			local fonts = {n = 0}
+			-- Body by operation system
+			if ffi.os == "Windows" then
+				-- Create device context for font system access
+				local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), ffi.C.DeleteDC)
+				-- Enumerate font families (of all charsets)
+				local plogfont = ffi.new("LOGFONTW[1]")
+				plogfont[0].lfCharSet = ffi.C.DEFAULT_CHARSET
+				plogfont[0].lfFaceName[0] = 0	-- Empty string
+				plogfont[0].lfPitchAndFamily = ffi.C.DEFAULT_PITCH + ffi.C.FF_DONTCARE
+				local fontname, font
+				ffi.C.EnumFontFamiliesExW(dc, plogfont, function(penumlogfont, _, fonttype, _)
+					-- Extend font entry
+					fontname = utf16_to_utf8(penumlogfont[0].elfLogFont.lfFaceName)
+					for i=1, fonts.n do
+						font = fonts[i]
+						if font.name == fontname then
+							font.properties.n = font.properties.n + 1
+							font.properties[font.properties.n] = {
+								style = utf16_to_utf8(penumlogfont[0].elfStyle),
+								charset_id = penumlogfont[0].elfLogFont.lfCharSet,
+								charset = utf16_to_utf8(penumlogfont[0].elfScript)
+							}
+							goto font_found
+						end
+					end
+					-- Add font entry
+					fonts.n = fonts.n + 1
+					fonts[fonts.n] = {
+						name = fontname,
+						longname = utf16_to_utf8(penumlogfont[0].elfFullName),
+						type = fonttype == ffi.C.FONTTYPE_RASTER and "Raster" or fonttype == ffi.C.FONTTYPE_DEVICE and "Device" or fonttype == ffi.C.FONTTYPE_TRUETYPE and "TrueType" or "Unknown",
+						properties = {
+							n = 1,
+							{
+								style = utf16_to_utf8(penumlogfont[0].elfStyle),
+								charset_id = penumlogfont[0].elfLogFont.lfCharSet,
+								charset = utf16_to_utf8(penumlogfont[0].elfScript)
+							}
+						}
+					}
+					::font_found::
+					-- Continue enumeration (till end)
+					return 1
+				end, 0, 0)
+				-- Files to fonts?
+				if with_filenames then
+					-- Adds filename to fitting font
+					local function file_to_font(fontname, fontfile)
+						local org_fontname
+						for i=1, fonts.n do
+							font = fonts[i]
+							org_fontname = font.longname:gsub("^@", "", 1)
+							if org_fontname == fontname or string.format("%s %s", org_fontname, font.properties[1].style) == fontname then
+								font.file = fontfile
+							end
+						end
+					end
+					-- Search registry for font files
+					local pregkey, fontfile = ffi.new("HKEY[1]")
+					if advapi.RegOpenKeyExA(ffi.cast("HKEY", ffi.C.HKEY_LOCAL_MACHINE), "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts", 0, ffi.C.KEY_READ, pregkey) == ffi.C.ERROR_SUCCESS then
+						local regkey = ffi.gc(pregkey[0], advapi.RegCloseKey)
+						local value_index, value_name, pvalue_name_size, value_data, pvalue_data_size = 0, ffi.new("wchar_t[16383]"), ffi.new("DWORD[1]"), ffi.new("BYTE[65536]"), ffi.new("DWORD[1]")
+						while true do
+							pvalue_name_size[0], pvalue_data_size[0] = ffi.sizeof(value_name) / ffi.sizeof("wchar_t"), ffi.sizeof(value_data)
+							if advapi.RegEnumValueW(regkey, value_index, value_name, pvalue_name_size, nil, nil, value_data, pvalue_data_size) ~= ffi.C.ERROR_SUCCESS then
+								break
+							else
+								value_index = value_index + 1
+							end
+							fontname, fontfile = utf16_to_utf8(value_name), utf16_to_utf8(ffi.cast("wchar_t*", value_data))
+							if fontname:find(" & ") then
+								for fontname in fontname:gmatch("(.-) & ") do
+									file_to_font(fontname, fontfile)
+								end
+								file_to_font(fontname:match(".* & (.-)$"):gsub(" %(.-%)$", "", 1), fontfile)
+							else
+								file_to_font(fontname:gsub(" %(.-%)$", "", 1), fontfile)
+							end
+						end
+					end
+				end
+			else	-- Unix
+				error("Unix version not implented yet", 2)
+			end
+			-- Order fonts by name
+			table.sort(fonts, function(font1, font2)
+				return font1.name < font2.name
+			end)
+			-- Return collected fonts
+			return fonts
 		end
 	}
 }
