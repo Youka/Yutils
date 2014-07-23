@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 23th July 2014, 12:30 (GMT+1)
+	Version: 23th July 2014, 22:15 (GMT+1)
 	
 	Yutils
 		table
@@ -91,7 +91,7 @@ local LIBASS_FONTHACK = false	-- Scale font data to fontsize (no effect on windo
 -- Load FFI interface
 local ffi = require("ffi")
 -- Check OS & load fitting complex scripting library
-local pangocairo, advapi
+local pangocairo, fontconfig, advapi
 if ffi.os == "Windows" then
 	-- WinGDI already loaded in C namespace by default
 	-- Load advanced winapi library
@@ -235,6 +235,8 @@ LONG RegEnumValueW(HKEY, DWORD, LPWSTR, LPDWORD, LPDWORD, LPDWORD, LPBYTE, LPDWO
 else	-- Unix
 	-- Load pangocairo library
 	pangocairo = ffi.load("libpangocairo-1.0.so")
+	-- Load fontconfig library
+	fontconfig = ffi.load("libfontconfig.so")
 	-- Set C definitions for Pangocairo
 	ffi.cdef([[
 typedef enum{
@@ -323,6 +325,27 @@ typedef struct{
 	cairo_path_data_t* data;
 	int num_data;
 }cairo_path_t;
+typedef void FcConfig;
+typedef void FcPattern;
+typedef struct{
+	int nobject;
+	int sobject;
+	const char** objects;
+}FcObjectSet;
+typedef struct{
+	int nfont;
+	int sfont;
+	FcPattern** fonts;
+}FcFontSet;
+typedef enum{
+	FcResultMatch,
+	FcResultNoMatch,
+	FcResultTypeMismatch,
+	FcResultNoId,
+	FcResultOutOfMemory
+}FcResult;
+typedef unsigned char FcChar8;
+typedef int FcBool;
 
 cairo_surface_t* cairo_image_surface_create(cairo_format_t, int, int);
 void cairo_surface_destroy(cairo_surface_t*);
@@ -360,6 +383,15 @@ void pango_cairo_layout_path(cairo_t*, PangoLayout*);
 void cairo_new_path(cairo_t*);
 cairo_path_t* cairo_copy_path(cairo_t*);
 void cairo_path_destroy(cairo_path_t*);
+FcConfig* FcInitLoadConfigAndFonts(void);
+FcPattern* FcPatternCreate(void);
+void FcPatternDestroy(FcPattern*);
+FcObjectSet* FcObjectSetBuild(const char*, ...);
+void FcObjectSetDestroy(FcObjectSet*);
+FcFontSet* FcFontList(FcConfig*, FcPattern*, FcObjectSet*);
+void FcFontSetDestroy(FcFontSet*);
+FcResult FcPatternGetString(FcPattern*, const char*, int, FcChar8**);
+FcResult FcPatternGetBool(FcPattern*, const char*, int, FcBool*);
 	]])
 end
 
@@ -2069,7 +2101,65 @@ Yutils = {
 					end
 				end
 			else	-- Unix
-				error("Unix version not implented yet", 2)
+				-- Get fonts list from fontconfig
+				local fontset = ffi.gc(fontconfig.FcFontList(fontconfig.FcInitLoadConfigAndFonts(),
+															ffi.gc(fontconfig.FcPatternCreate(), fontconfig.FcPatternDestroy),
+															ffi.gc(fontconfig.FcObjectSetBuild("family", "outline", "style", "stylelang", with_filenames and "file" or nil, nil), fontconfig.FcObjectSetDestroy)),
+										fontconfig.FcFontSetDestroy)
+				-- Enumerate fonts
+				local font, family, outline, style, language, file
+				local cstr, cbool = ffi.new("FcChar8*[1]"), ffi.new("FcBool[1]")
+				for i=0, fontset[0].nfont-1 do
+					-- Get font informations
+					font = fontset[0].fonts[i]
+					family, outline, style, language, file = nil
+					if fontconfig.FcPatternGetString(font, "family", 0, cstr) == ffi.C.FcResultMatch then
+						family = ffi.string(cstr[0])
+					end
+					if fontconfig.FcPatternGetBool(font, "outline", 0, cbool) == ffi.C.FcResultMatch then
+						outline = cbool[0]
+					end
+					if fontconfig.FcPatternGetString(font, "style", 0, cstr) == ffi.C.FcResultMatch then
+						style = ffi.string(cstr[0])
+					end
+					if fontconfig.FcPatternGetString(font, "stylelang", 0, cstr) == ffi.C.FcResultMatch then
+						language = ffi.string(cstr[0])
+					end
+					if fontconfig.FcPatternGetString(font, "file", 0, cstr) == ffi.C.FcResultMatch then
+						file = ffi.string(cstr[0])
+					end
+					-- Make font entry
+					if family and outline and style and language then
+						-- Extend font entry
+						for i=1, fonts.n do
+							font = fonts[i]
+							if font.name == family then
+								font.properties.n = font.properties.n + 1
+								font.properties[font.properties.n] = {
+									style = style,
+									language = language,
+									file = file
+								}
+								goto font_found
+							end
+						end
+						-- Add font entry
+						fonts.n = fonts.n + 1
+						fonts[fonts.n] = {
+							name = family,
+							type = outline == 0 and "Raster" or "Outline",
+							properties = {
+								n = 1,
+								{
+									style = style,
+									language = language,
+									file = file
+								}
+							}
+						}
+						::font_found::
+					end
+				end
 			end
 			-- Order fonts by name
 			table.sort(fonts, function(font1, font2)
