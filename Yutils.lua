@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 23th July 2014, 22:15 (GMT+1)
+	Version: 24th July 2014, 14:45 (GMT+1)
 	
 	Yutils
 		table
@@ -77,7 +77,7 @@
 				metrics() -> table
 				text_extents(text) -> table
 				text_to_shape(text) -> string
-			list_fonts(with_filenames) -> table
+			list_fonts([with_filenames]) -> table
 ]]
 
 -- Configuration
@@ -2021,26 +2021,18 @@ Yutils = {
 			local fonts = {n = 0}
 			-- Body by operation system
 			if ffi.os == "Windows" then
-				-- Create device context for font system access
-				local dc = ffi.gc(ffi.C.CreateCompatibleDC(nil), ffi.C.DeleteDC)
 				-- Enumerate font families (of all charsets)
 				local plogfont = ffi.new("LOGFONTW[1]")
 				plogfont[0].lfCharSet = ffi.C.DEFAULT_CHARSET
 				plogfont[0].lfFaceName[0] = 0	-- Empty string
 				plogfont[0].lfPitchAndFamily = ffi.C.DEFAULT_PITCH + ffi.C.FF_DONTCARE
-				local fontname, font
-				ffi.C.EnumFontFamiliesExW(dc, plogfont, function(penumlogfont, _, fonttype, _)
-					-- Extend font entry
-					fontname = utf16_to_utf8(penumlogfont[0].elfLogFont.lfFaceName)
+				local fontname, style, font
+				ffi.C.EnumFontFamiliesExW(ffi.gc(ffi.C.CreateCompatibleDC(nil), ffi.C.DeleteDC), plogfont, function(penumlogfont, _, fonttype, _)
+					-- Skip different font charsets
+					fontname, style = utf16_to_utf8(penumlogfont[0].elfLogFont.lfFaceName), utf16_to_utf8(penumlogfont[0].elfStyle)
 					for i=1, fonts.n do
 						font = fonts[i]
-						if font.name == fontname then
-							font.properties.n = font.properties.n + 1
-							font.properties[font.properties.n] = {
-								style = utf16_to_utf8(penumlogfont[0].elfStyle),
-								charset_id = penumlogfont[0].elfLogFont.lfCharSet,
-								charset = utf16_to_utf8(penumlogfont[0].elfScript)
-							}
+						if font.name == fontname and font.style == style then
 							goto font_found
 						end
 					end
@@ -2049,15 +2041,8 @@ Yutils = {
 					fonts[fonts.n] = {
 						name = fontname,
 						longname = utf16_to_utf8(penumlogfont[0].elfFullName),
+						style = style,
 						type = fonttype == ffi.C.FONTTYPE_RASTER and "Raster" or fonttype == ffi.C.FONTTYPE_DEVICE and "Device" or fonttype == ffi.C.FONTTYPE_TRUETYPE and "TrueType" or "Unknown",
-						properties = {
-							n = 1,
-							{
-								style = utf16_to_utf8(penumlogfont[0].elfStyle),
-								charset_id = penumlogfont[0].elfLogFont.lfCharSet,
-								charset = utf16_to_utf8(penumlogfont[0].elfScript)
-							}
-						}
 					}
 					::font_found::
 					-- Continue enumeration (till end)
@@ -2067,11 +2052,9 @@ Yutils = {
 				if with_filenames then
 					-- Adds filename to fitting font
 					local function file_to_font(fontname, fontfile)
-						local org_fontname
 						for i=1, fonts.n do
 							font = fonts[i]
-							org_fontname = font.longname:gsub("^@", "", 1)
-							if org_fontname == fontname or string.format("%s %s", org_fontname, font.properties[1].style) == fontname then
+							if fontname == font.name:gsub("^@", "", 1) or fontname == string.format("%s %s", font.name:gsub("^@", "", 1), font.style) or fontname == font.longname:gsub("^@", "", 1) then
 								font.file = fontfile
 							end
 						end
@@ -2088,14 +2071,14 @@ Yutils = {
 							else
 								value_index = value_index + 1
 							end
-							fontname, fontfile = utf16_to_utf8(value_name), utf16_to_utf8(ffi.cast("wchar_t*", value_data))
+							fontname = utf16_to_utf8(value_name):gsub("(.*) %(.-%)$", "%1", 1)
+							fontfile = utf16_to_utf8(ffi.cast("wchar_t*", value_data))
+							file_to_font(fontname, fontfile)
 							if fontname:find(" & ") then
 								for fontname in fontname:gmatch("(.-) & ") do
 									file_to_font(fontname, fontfile)
 								end
-								file_to_font(fontname:match(".* & (.-)$"):gsub(" %(.-%)$", "", 1), fontfile)
-							else
-								file_to_font(fontname:gsub(" %(.-%)$", "", 1), fontfile)
+								file_to_font(fontname:match(".* & (.-)$"), fontfile)
 							end
 						end
 					end
@@ -2104,66 +2087,50 @@ Yutils = {
 				-- Get fonts list from fontconfig
 				local fontset = ffi.gc(fontconfig.FcFontList(fontconfig.FcInitLoadConfigAndFonts(),
 															ffi.gc(fontconfig.FcPatternCreate(), fontconfig.FcPatternDestroy),
-															ffi.gc(fontconfig.FcObjectSetBuild("family", "outline", "style", "stylelang", with_filenames and "file" or nil, nil), fontconfig.FcObjectSetDestroy)),
+															ffi.gc(fontconfig.FcObjectSetBuild("family", "fullname", "style", "outline", with_filenames and "file" or nil, nil), fontconfig.FcObjectSetDestroy)),
 										fontconfig.FcFontSetDestroy)
 				-- Enumerate fonts
-				local font, family, outline, style, language, file
+				local font, family, fullname, style, outline, file
 				local cstr, cbool = ffi.new("FcChar8*[1]"), ffi.new("FcBool[1]")
 				for i=0, fontset[0].nfont-1 do
 					-- Get font informations
 					font = fontset[0].fonts[i]
-					family, outline, style, language, file = nil
+					family, fullname, style, outline, file = nil
 					if fontconfig.FcPatternGetString(font, "family", 0, cstr) == ffi.C.FcResultMatch then
 						family = ffi.string(cstr[0])
 					end
-					if fontconfig.FcPatternGetBool(font, "outline", 0, cbool) == ffi.C.FcResultMatch then
-						outline = cbool[0]
+					if fontconfig.FcPatternGetString(font, "fullname", 0, cstr) == ffi.C.FcResultMatch then
+						fullname = ffi.string(cstr[0])
 					end
 					if fontconfig.FcPatternGetString(font, "style", 0, cstr) == ffi.C.FcResultMatch then
 						style = ffi.string(cstr[0])
 					end
-					if fontconfig.FcPatternGetString(font, "stylelang", 0, cstr) == ffi.C.FcResultMatch then
-						language = ffi.string(cstr[0])
+					if fontconfig.FcPatternGetBool(font, "outline", 0, cbool) == ffi.C.FcResultMatch then
+						outline = cbool[0]
 					end
 					if fontconfig.FcPatternGetString(font, "file", 0, cstr) == ffi.C.FcResultMatch then
 						file = ffi.string(cstr[0])
 					end
-					-- Make font entry
-					if family and outline and style and language then
-						-- Extend font entry
-						for i=1, fonts.n do
-							font = fonts[i]
-							if font.name == family then
-								font.properties.n = font.properties.n + 1
-								font.properties[font.properties.n] = {
-									style = style,
-									language = language,
-									file = file
-								}
-								goto font_found
-							end
-						end
-						-- Add font entry
+					-- Add font entry
+					if family and fullname and style and outline then
 						fonts.n = fonts.n + 1
 						fonts[fonts.n] = {
 							name = family,
+							longname = fullname,
+							style = style,
 							type = outline == 0 and "Raster" or "Outline",
-							properties = {
-								n = 1,
-								{
-									style = style,
-									language = language,
-									file = file
-								}
-							}
+							file = file
 						}
-						::font_found::
 					end
 				end
 			end
-			-- Order fonts by name
+			-- Order fonts by name & style
 			table.sort(fonts, function(font1, font2)
-				return font1.name < font2.name
+				if font1.name == font2.name then
+					return font1.style < font2.style
+				else
+					return font1.name < font2.name
+				end
 			end)
 			-- Return collected fonts
 			return fonts
