@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 24th July 2014, 14:45 (GMT+1)
+	Version: 30th July 2014, 18:45 (GMT+1)
 	
 	Yutils
 		table
@@ -54,6 +54,7 @@
 			lines(text) -> function
 		shape
 			bounding(shape) -> number, number, number, number
+			detect(width, height, data[, compare_func]) -> table
 			filter(shape, filter) -> string
 			flatten(shape) -> string
 			glue(src_shape, dst_shape[, transform_callback]) -> string
@@ -960,6 +961,204 @@ Yutils = {
 				y1 = y1 and math.max(y1, y) or y
 			end)
 			return x0, y0, x1, y1
+		end,
+		-- Extracts shapes by similar data in 2d data map
+		detect = function(width, height, data, compare_func)
+			-- Check arguments
+			if type(width) ~= "number" or math.floor(width) ~= width or width < 1 or type(height) ~= "number" or math.floor(height) ~= height or height < 1 or type(data) ~= "table" or #data < width * height or (compare_func ~= nil and type(compare_func) ~= "function") then
+				error("width, height, data and optional data compare function expected", 2)
+			end
+			-- Set default comparator
+			if not compare_func then
+				compare_func = function(a, b) return a == b end
+			end
+			-- Maximal data number to be processed
+			local data_n = width * height
+			-- Collect unique data elements
+			local elements = {n = 1, {value = data[1]}}
+			for i=2, data_n do
+				for j=1, elements.n do
+					if compare_func(data[i], elements[j].value) then
+						goto element_found
+					end
+				end
+				elements.n = elements.n + 1
+				elements[elements.n] = {value = type(data[i]) == "table" and Yutils.table.copy(data[i]) or data[i]}
+				::element_found::
+			end
+			-- Detection helper functions
+			local function index_to_x(i)
+				return (i-1) % width
+			end
+			local function index_to_y(i)
+				return math.floor((i-1) / width)
+			end
+			local function coord_to_index(x, y)
+				return 1 + x + y * width
+			end
+			local function find_direction(bitmap, x, y, last_direction)
+				local top_left, top_right, bottom_left, bottom_right =
+					x-1 >= 0 and y-1 >= 0 and bitmap[coord_to_index(x-1,y-1)] == 1 or false,
+					x < width and y-1 >= 0 and bitmap[coord_to_index(x,y-1)] == 1 or false,
+					x-1 >= 0 and y < height and bitmap[coord_to_index(x-1,y)] == 1 or false,
+					x < width and y < height and bitmap[coord_to_index(x,y)] == 1 or false
+				return last_direction == 8 and (
+						bottom_left and (
+							top_left and top_right and 6 or
+							top_left and 8 or
+							4
+						) or (	-- bottom_right
+							top_left and top_right and 4 or
+							top_right and 8 or
+							6
+						)
+					) or last_direction == 6 and (
+						top_left and (
+							top_right and bottom_right and 2 or
+							top_right and 6 or
+							8
+						)or (	-- bottom_left
+							top_right and bottom_right and 8 or
+							bottom_right and 6 or
+							2
+						)
+					) or last_direction == 2 and (
+						top_left and (
+							bottom_left and bottom_right and 6 or
+							bottom_left and 2 or
+							4
+						) or (	-- top_right
+							bottom_left and bottom_right and 4 or
+							bottom_right and 2 or
+							6
+						)
+					) or last_direction == 4 and (
+						top_right and (
+							top_left and bottom_left and 2 or
+							top_left and 4 or
+							8
+						) or (	-- bottom_right
+							top_left and bottom_left and 8 or
+							bottom_left and 4 or
+							2
+						)
+					)
+			end
+			local function extract_contour(bitmap, x, y, cw)
+				local contour, direction = {n = 1, cw and {x1 = x, y1 = y+1, x2 = x, y2 = y, direction = 8} or {x1 = x, y1 = y, x2 = x, y2 = y+1, direction = 2}}
+				repeat
+					x, y = contour[contour.n].x2, contour[contour.n].y2
+					direction = find_direction(bitmap, x, y, contour[contour.n].direction)
+					contour.n = contour.n + 1
+					contour[contour.n] = {x1 = x, y1 = y, x2 = direction == 4 and x-1 or direction == 6 and x+1 or x, y2 = direction == 8 and y-1 or direction == 2 and y+1 or y, direction = direction}
+				until contour[contour.n].x2 == contour[1].x1 and contour[contour.n].y2 == contour[1].y1
+				return contour
+			end
+			local function contour_indices(contour)
+				-- Get top & bottom line of contour
+				local min_y, max_y, line
+				for i=1, contour.n do
+					line = contour[i]
+					if line.direction == 8 then
+						min_y, max_y = min_y and math.min(min_y, line.y2) or line.y2, max_y and math.max(max_y, line.y2) or line.y2
+					elseif line.direction == 2 then
+						min_y, max_y = min_y and math.min(min_y, line.y1) or line.y1, max_y and math.max(max_y, line.y1) or line.y1
+					end
+				end
+				-- Get indices by scanlines
+				local indices, h_stops, h_stops_n, j = {n = 0}
+				for y=min_y, max_y do
+					h_stops, h_stops_n = {}, 0
+					for i=1, contour.n do
+						line = contour[i]
+						if line.direction == 8 and line.y2 == y or line.direction == 2 and line.y1 == y then
+							h_stops_n = h_stops_n + 1
+							h_stops[h_stops_n] = line.x1
+						end
+					end
+					table.sort(h_stops)
+					for i=1, h_stops_n, 2 do
+						j = coord_to_index(h_stops[i], y)
+						for x_off=0, h_stops[i+1] - h_stops[i] - 1 do
+							indices.n = indices.n + 1
+							indices[indices.n] = j + x_off
+						end
+					end
+				end
+				return indices
+			end
+			local function merge_contour_lines(contour)
+				local i = 1
+				while i < contour.n do
+					if contour[i].direction == contour[i+1].direction then
+						contour[i].x2, contour[i].y2 = contour[i+1].x2, contour[i+1].y2
+						table.remove(contour, i+1)
+						contour.n = contour.n - 1
+					else
+						i = i + 1
+					end
+				end
+				if contour.n > 1 and contour[1].direction == contour[contour.n].direction then
+					contour[1].x1, contour[1].y1 = contour[contour.n].x1, contour[contour.n].y1
+					table.remove(contour)
+					contour.n = contour.n - 1
+				end
+				return contour
+			end
+			local function contour_to_shape(contour)
+				local shape, shape_n, line = {string.format("m %d %d l", contour[1].x1, contour[1].y1)}, 1
+				for i=1, contour.n do
+					line = contour[i]
+					shape_n = shape_n + 1
+					shape[shape_n] = string.format("%d %d", line.x2, line.y2)
+				end
+				return table.concat(shape, " ")
+			end
+			-- Find shapes for elements
+			local element, element_shapes, shape, shape_n, element_contour, element_hole_contour, indices, hole_indices
+			local bitmap = {}
+			for i=1, elements.n do
+				element, element_shapes = elements[i].value, {n = 0}
+				-- Create bitmap of data for current element
+				for i=1, data_n do
+					bitmap[i] = compare_func(data[i], element) and 1 or 0
+				end
+				-- Find first upper-left element of shapes
+				for i=1, data_n do
+					if bitmap[i] == 1 then
+						-- Detect contour
+						element_contour = extract_contour(bitmap, index_to_x(i), index_to_y(i), true)
+						indices = contour_indices(element_contour)
+						shape, shape_n = {contour_to_shape(merge_contour_lines(element_contour))}, 1
+						-- Detect contour holes
+						for i=1, indices.n do
+							i = indices[i]
+							if bitmap[i] == 0 then
+								element_hole_contour = extract_contour(bitmap, index_to_x(i), index_to_y(i), false)
+								hole_indices = contour_indices(element_hole_contour)
+								shape_n = shape_n + 1
+								shape[shape_n] = contour_to_shape(merge_contour_lines(element_hole_contour))
+								for i=1, hole_indices.n do
+									i = hole_indices[i]
+									bitmap[i] = bitmap[i] + 1
+								end
+							end
+						end
+						-- Remove contour from bitmap
+						for i=1, indices.n do
+							i = indices[i]
+							bitmap[i] = bitmap[i] - 1
+						end
+						-- Add shape to element
+						element_shapes.n = element_shapes.n + 1
+						element_shapes[element_shapes.n] = table.concat(shape, " ")
+					end
+				end
+				-- Set shapes to element
+				elements[i].shapes = element_shapes
+			end
+			-- Return shapes by element
+			return elements
 		end,
 		-- Filters shape points
 		filter = function(shape, filter)

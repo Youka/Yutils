@@ -20,6 +20,5 @@ See tests and Yutils.lua first lines.
 
 TODO:
 -----
-* add bitmap/data field tracer
-* add ASS sublibrary (color/alpha conv, parser)
+* add ASS sublibrary (color/alpha/time conv, parser)
 * write detailed docs

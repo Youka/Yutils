@@ -11,7 +11,18 @@ print("Mirrored shape: " .. Yutils.shape.transform(shape, Yutils.math.create_mat
 print("Shape with splitted lines: " .. Yutils.shape.split(shape, 15))
 print("Shape outline: " .. Yutils.shape.to_outline(Yutils.shape.flatten(shape), 5.5, 10))
 print("Pixels:\n" .. Yutils.table.tostring(Yutils.shape.to_pixels("m -4.5 -4 l 0 -4 0 0")))
-
+print(
+	"Detected shapes:\n" ..
+	Yutils.table.tostring(
+		Yutils.shape.detect(5, 5, {
+			1, 1, 1, 1, 1,
+			1, 0, 0, 2, 1,
+			1, 0, 1, 0, 1,
+			1, 0, 0, 0, 1,
+			1, 1, 1, 1, 1
+		})
+	)
+)
 print(
 	"Text on shape: " ..
 	Yutils.shape.glue(
