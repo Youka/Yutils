@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 31th July 2014, 06:55 (GMT+1)
+	Version: 2nd August 2014, 06:50 (GMT+1)
 	
 	Yutils
 		table
@@ -92,8 +92,8 @@ local LIBASS_FONTHACK = false	-- Scale font data to fontsize (no effect on windo
 
 -- Load FFI interface
 local ffi = require("ffi")
--- Check OS & load fitting complex scripting library
-local pangocairo, fontconfig, advapi
+-- Check OS & load fitting system libraries
+local advapi, pangocairo, fontconfig
 if ffi.os == "Windows" then
 	-- WinGDI already loaded in C namespace by default
 	-- Load advanced winapi library
@@ -1646,6 +1646,7 @@ Yutils = {
 				-- Collect lines (points + vectors)
 				local lines, lines_n, last_point, last_move = {}, 0
 				Yutils.shape.filter(Yutils.shape.flatten(shape), function(x, y, typ)
+					x, y = Yutils.math.round(x), Yutils.math.round(y)	-- Use integers to avoid rounding errors
 					-- Move
 					if typ == "m" then
 						-- Close figure with non-horizontal line in image
@@ -1678,7 +1679,7 @@ Yutils = {
 				end
 				-- Scan image rows in shape
 				local _, y1, _, y2 = Yutils.shape.bounding(shape)
-				for y = math.max(y1, 0), math.min(y2, height)-1 do
+				for y = math.max(math.floor(y1), 0), math.min(math.ceil(y2), height)-1 do
 					-- Collect row intersections with lines
 					local row_stops, row_stops_n = {}, 0
 					for i=1, lines_n do

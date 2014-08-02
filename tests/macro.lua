@@ -3,7 +3,7 @@ script_name = "Wobble text"
 script_description = "Converts a text to a shape and adds wobbling."
 script_author = "Youka"
 script_version = "1.2"
-script_modified = "27th July 2014"
+script_modified = "31th July 2014"
 
 -- Load Yutils library
 local Yutils = include("Yutils.lua")
@@ -149,20 +149,20 @@ local function load_macro()
 	-- OK from UI
 	if ok then
 		-- Save UI configuration to template
-		config_template[2].value = config.fontname
-		config_template[3].value = config.bold
-		config_template[4].value = config.italic
-		config_template[6].value = config.fontsize
-		config_template[7].value = config.underline
-		config_template[8].value = config.strikeout
-		config_template[10].value = config.scale_x
-		config_template[12].value = config.scale_y
-		config_template[14].value = config.spacing
-		config_template[16].text = config.text
-		config_template[20].value = config.wobble_frequency_x
-		config_template[21].value = config.wobble_frequency_y
-		config_template[23].value = config.wobble_strength_x
-		config_template[24].value = config.wobble_strength_y
+		local config_template_n, config_template_entry = #config_template
+		for config_key, config_value in pairs(config) do
+			for i=1, config_template_n do
+				config_template_entry = config_template[i]
+				if config_template_entry.name == config_key then
+					if config_template_entry.value then
+						config_template_entry.value = config_value
+					elseif config_template_entry.text then
+						config_template_entry.text = config_value
+					end
+					break
+				end
+			end
+		end
 		-- Calculate shape from configuration settings
 		local text_shape = Yutils.decode.create_font(config.fontname, config.bold, config.italic, config.underline, config.strikeout, config.fontsize, config.scale_x / 100, config.scale_y / 100, config.spacing).text_to_shape(config.text)
 		if (config.wobble_frequency_x > 0 and config.wobble_strength_x > 0) or (config.wobble_frequency_y > 0 and config.wobble_strength_y > 0) then
