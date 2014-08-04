@@ -75,7 +75,7 @@
 				data_raw() -> string
 				data_packed() -> table
 				data_text() -> string
-			create_font(font, bold, italic, underline, strikeout, size[, xscale, yscale, hspace]) -> table
+			create_font(family, bold, italic, underline, strikeout, size[, xscale, yscale, hspace]) -> table
 				metrics() -> table
 				text_extents(text) -> table
 				text_to_shape(text) -> string
@@ -83,7 +83,7 @@
 ]]
 
 -- Configuration
-local FP_PRECISION = 100	-- Floating point precision by divisor (for shape points)
+local FP_PRECISION = 1000	-- Floating point precision by divisor (for shape points)
 local CURVE_TOLERANCE = 1	-- Angle in degree to define a curve as flat
 local MAX_CIRCUMFERENCE = 1.5	-- Circumference step size to create round edges out of lines
 local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
