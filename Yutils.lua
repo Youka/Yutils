@@ -88,7 +88,7 @@ local CURVE_TOLERANCE = 1	-- Angle in degree to define a curve as flat
 local MAX_CIRCUMFERENCE = 1.5	-- Circumference step size to create round edges out of lines
 local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
 local FONT_PRECISION = 64	-- Font scale for better precision output from native font system
-local LIBASS_FONTHACK = false	-- Scale font data to fontsize (no effect on windows)
+local LIBASS_FONTHACK = false	-- Scale font data to fontsize? (no effect on windows)
 
 -- Load FFI interface
 local ffi = require("ffi")
@@ -97,7 +97,7 @@ local advapi, pangocairo, fontconfig
 if ffi.os == "Windows" then
 	-- WinGDI already loaded in C namespace by default
 	-- Load advanced winapi library
-	advapi = ffi.load("Advapi32.dll")
+	advapi = ffi.load("Advapi32")
 	-- Set C definitions for WinAPI
 	ffi.cdef([[
 enum{CP_UTF8 = 65001};
@@ -1763,88 +1763,105 @@ Yutils = {
 		create_bmp_reader = function(filename)
 			-- Check argument
 			if type(filename) ~= "string" then
-				error("bmp filename expected", 2)
+				error("bitmap filename expected", 2)
 			end
-			-- Convert little-endian bytes string to Lua number
-			local function bton(s)
-				local bytes, n = {s:byte(1,#s)}, 0
-				for i = 0, #bytes-1 do
-					n = n + bytes[1+i] * 2^(i*8)
+			-- Image decoders
+			local function bmp_decode(filename)
+				-- Convert little-endian bytes string to Lua number
+				local function bton(s)
+					local bytes, n = {s:byte(1,#s)}, 0
+					for i = 0, #bytes-1 do
+						n = n + bytes[1+i] * 2^(i*8)
+					end
+					return n
 				end
-				return n
+				-- Open file handle & read bitmap type from header
+				local file = io.open(filename, "rb")
+				if file and file:read(2) == "BM" then
+					-- Read bitmap header
+					local file_size = file:read(4)
+					if not file_size then
+						return "file size not found"
+					end
+					file_size = bton(file_size)
+					file:seek("cur", 4)	-- skip application reserved bytes
+					local data_offset = file:read(4)
+					if not data_offset then
+						return "data offset not found"
+					end
+					data_offset = bton(data_offset)
+					-- DIB Header
+					file:seek("cur", 4)	-- skip header size
+					local width = file:read(4)
+					if not width then
+						return "width not found"
+					end
+					width = bton(width)
+					if width >= 2^31 then
+						return "pixels in right-to-left order are not supported"
+					end
+					local height = file:read(4)
+					if not height then
+						return "height not found"
+					end
+					height = bton(height)
+					if height >= 2^31 then
+						height = height - 2^32
+					end
+					local planes = file:read(2)
+					if not planes or bton(planes) ~= 1 then
+						return "planes must be 1"
+					end
+					local bit_depth = file:read(2)
+					if not bit_depth then
+						return "bit depth not found"
+					end
+					bit_depth = bton(bit_depth)
+					if bit_depth ~= 24 and bit_depth ~= 32 then
+						return "bit depth must be 24 or 32"
+					end
+					local compression = file:read(4)
+					if not compression or bton(compression) ~= 0 then
+						return "must be uncompressed RGB"
+					end
+					local data_size = file:read(4)
+					if not data_size then
+						return "data size not found"
+					end
+					data_size = bton(data_size)
+					if data_size == 0 then
+						return "data size must not be zero"
+					end
+					-- Data
+					file:seek("set", data_offset)
+					local data = file:read(data_size)
+					if not data or #data ~= data_size then
+						return "not enough data"
+					end
+					-- All data read from file -> close handle (don't wait for GC)
+					file:close()
+					-- Calculate row size (round up to multiple of 4)
+					local row_size = math.floor((bit_depth * width + 31) / 32) * 4
+					-- Return relevant bitmap informations
+					return file_size, width, height, bit_depth, data_size, data, row_size
+				end
 			end
-			-- Open file handle
-			local file = io.open(filename, "rb")
-			if not file then
-				error(string.format("couldn't open file %q", filename), 2)
+			local function png_decode(filename)
+			
+				-- TODO
+			
 			end
-			-- Read bitmap header
-			if file:read(2) ~= "BM" then
-				error("not a windows bitmap file", 2)
-			end
-			local file_size = file:read(4)
+			-- Try to decode file
+			local file_size, width, height, bit_depth, data_size, data, row_size = bmp_decode(filename)
 			if not file_size then
-				error("file size not found", 2)
+				file_size, width, height, bit_depth, data_size, data, row_size = png_decode(filename)
+				if not file_size then
+					error("couldn't decode file", 2)
+				end
 			end
-			file_size = bton(file_size)
-			file:seek("cur", 4)	-- skip application reserved bytes
-			local data_offset = file:read(4)
-			if not data_offset then
-				error("data offset not found", 2)
+			if type(file_size) == "string" then
+				error(file_size, 2)
 			end
-			data_offset = bton(data_offset)
-			-- DIB Header
-			file:seek("cur", 4)	-- skip header size
-			local width = file:read(4)
-			if not width then
-				error("width not found", 2)
-			end
-			width = bton(width)
-			if width >= 2^31 then
-				error("pixels in right-to-left order not supported", 2)
-			end
-			local height = file:read(4)
-			if not height then
-				error("height not found", 2)
-			end
-			height = bton(height)
-			if height >= 2^31 then
-				height = height - 2^32
-			end
-			local planes = file:read(2)
-			if not planes or bton(planes) ~= 1 then
-				error("planes must be 1", 2)
-			end
-			local bit_depth = file:read(2)
-			if not bit_depth then
-				error("bit depth not found", 2)
-			end
-			bit_depth = bton(bit_depth)
-			if bit_depth ~= 24 and bit_depth ~= 32 then
-				error("bit depth must be 24 or 32", 2)
-			end
-			local compression = file:read(4)
-			if not compression or bton(compression) ~= 0 then
-				error("must be uncompressed RGB", 2)
-			end
-			local data_size = file:read(4)
-			if not data_size then
-				error("data size not found", 2)
-			end
-			data_size = bton(data_size)
-			if data_size == 0 then
-				error("data size must not be zero", 2)
-			end
-			-- Data
-			file:seek("set", data_offset)
-			local data = file:read(data_size)
-			if not data or #data ~= data_size then
-				error("not enough data", 2)
-			end
-			-- All data read from file -> close handle (don't wait for GC)
-			file:close()
-			-- Calculate row size (round up to multiple of 4)
-			local row_size = math.floor((bit_depth * width + 31) / 32) * 4
 			-- Return bitmap object
 			local obj
 			obj = {
