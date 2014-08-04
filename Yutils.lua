@@ -236,9 +236,9 @@ LONG RegEnumValueW(HKEY, DWORD, LPWSTR, LPDWORD, LPDWORD, LPDWORD, LPBYTE, LPDWO
 	]])
 else	-- Unix
 	-- Load pangocairo library
-	pangocairo = ffi.load("libpangocairo-1.0.so")
+	pangocairo = ffi.load("pangocairo-1.0.so")	-- Extension must be appended because of dot already in filename
 	-- Load fontconfig library
-	fontconfig = ffi.load("libfontconfig.so")
+	fontconfig = ffi.load("fontconfig")
 	-- Set C definitions for Pangocairo
 	ffi.cdef([[
 typedef enum{
