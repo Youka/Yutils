@@ -235,12 +235,11 @@ LONG RegCloseKey(HKEY);
 LONG RegEnumValueW(HKEY, DWORD, LPWSTR, LPDWORD, LPDWORD, LPDWORD, LPBYTE, LPDWORD);
 	]])
 else	-- Unix
-	-- Load pangocairo library
-	pangocairo = ffi.load("pangocairo-1.0.so")	-- Extension must be appended because of dot already in filename
-	-- Load fontconfig library
-	fontconfig = ffi.load("fontconfig")
-	-- Set C definitions for Pangocairo
-	ffi.cdef([[
+	-- Attempt to load pangocairo library
+	pcall(function()
+		pangocairo = ffi.load("pangocairo-1.0.so") -- Extension must be appended because of dot already in filename
+		-- Set C definitions for pangocairo
+		ffi.cdef([[
 typedef enum{
     CAIRO_FORMAT_INVALID   = -1,
     CAIRO_FORMAT_ARGB32    = 0,
@@ -327,27 +326,6 @@ typedef struct{
 	cairo_path_data_t* data;
 	int num_data;
 }cairo_path_t;
-typedef void FcConfig;
-typedef void FcPattern;
-typedef struct{
-	int nobject;
-	int sobject;
-	const char** objects;
-}FcObjectSet;
-typedef struct{
-	int nfont;
-	int sfont;
-	FcPattern** fonts;
-}FcFontSet;
-typedef enum{
-	FcResultMatch,
-	FcResultNoMatch,
-	FcResultTypeMismatch,
-	FcResultNoId,
-	FcResultOutOfMemory
-}FcResult;
-typedef unsigned char FcChar8;
-typedef int FcBool;
 
 cairo_surface_t* cairo_image_surface_create(cairo_format_t, int, int);
 void cairo_surface_destroy(cairo_surface_t*);
@@ -385,6 +363,36 @@ void pango_cairo_layout_path(cairo_t*, PangoLayout*);
 void cairo_new_path(cairo_t*);
 cairo_path_t* cairo_copy_path(cairo_t*);
 void cairo_path_destroy(cairo_path_t*);
+		]])
+	end)
+
+	-- Attempt to load fontconfig library
+	pcall( function()
+		fontconfig = ffi.load("fontconfig")
+		-- Set C definitions for fontconfig
+		ffi.cdef([[
+typedef void FcConfig;
+typedef void FcPattern;
+typedef struct{
+	int nobject;
+	int sobject;
+	const char** objects;
+}FcObjectSet;
+typedef struct{
+	int nfont;
+	int sfont;
+	FcPattern** fonts;
+}FcFontSet;
+typedef enum{
+	FcResultMatch,
+	FcResultNoMatch,
+	FcResultTypeMismatch,
+	FcResultNoId,
+	FcResultOutOfMemory
+}FcResult;
+typedef unsigned char FcChar8;
+typedef int FcBool;
+
 FcConfig* FcInitLoadConfigAndFonts(void);
 FcPattern* FcPatternCreate(void);
 void FcPatternDestroy(FcPattern*);
@@ -394,7 +402,8 @@ FcFontSet* FcFontList(FcConfig*, FcPattern*, FcObjectSet*);
 void FcFontSetDestroy(FcFontSet*);
 FcResult FcPatternGetString(FcPattern*, const char*, int, FcChar8**);
 FcResult FcPatternGetBool(FcPattern*, const char*, int, FcBool*);
-	]])
+		]])
+	end)
 end
 
 -- Helper functions
@@ -2142,6 +2151,10 @@ Yutils = {
 					end
 				}
 			else	-- Unix
+				-- Check whether or not the pangocairo library was loaded
+				if not pangocairo then
+					error("pangocairo library could not be loaded", 2)
+				end
 				-- Create surface, context & layout
 				local surface = pangocairo.cairo_image_surface_create(ffi.C.CAIRO_FORMAT_A8, 1, 1)
 				local context = pangocairo.cairo_create(surface)
@@ -2339,6 +2352,10 @@ Yutils = {
 					end
 				end
 			else	-- Unix
+				-- Check whether or not the fontconfig library was loaded
+				if not fontconfig then
+					error("fontconfig library could not be loaded", 2)
+				end
 				-- Get fonts list from fontconfig
 				local fontset = ffi.gc(fontconfig.FcFontList(fontconfig.FcInitLoadConfigAndFonts(),
 															ffi.gc(fontconfig.FcPatternCreate(), fontconfig.FcPatternDestroy),
