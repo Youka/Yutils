@@ -365,9 +365,8 @@ cairo_path_t* cairo_copy_path(cairo_t*);
 void cairo_path_destroy(cairo_path_t*);
 		]])
 	end)
-
 	-- Attempt to load fontconfig library
-	pcall( function()
+	pcall(function()
 		fontconfig = ffi.load("fontconfig")
 		-- Set C definitions for fontconfig
 		ffi.cdef([[
@@ -405,6 +404,17 @@ FcResult FcPatternGetBool(FcPattern*, const char*, int, FcBool*);
 		]])
 	end)
 end
+-- Load PNG decode library (at least try it)
+local libpng
+pcall(function()
+	libpng = ffi.load("libpng")
+	-- Set C definitions for libpng
+	ffi.cdef([[
+
+// TODO
+
+	]])
+end)
 
 -- Helper functions
 local function roundf(x)
@@ -2153,7 +2163,7 @@ Yutils = {
 			else	-- Unix
 				-- Check whether or not the pangocairo library was loaded
 				if not pangocairo then
-					error("pangocairo library could not be loaded", 2)
+					error("pangocairo library couldn't be loaded", 2)
 				end
 				-- Create surface, context & layout
 				local surface = pangocairo.cairo_image_surface_create(ffi.C.CAIRO_FORMAT_A8, 1, 1)
@@ -2354,7 +2364,7 @@ Yutils = {
 			else	-- Unix
 				-- Check whether or not the fontconfig library was loaded
 				if not fontconfig then
-					error("fontconfig library could not be loaded", 2)
+					error("fontconfig library couldn't be loaded", 2)
 				end
 				-- Get fonts list from fontconfig
 				local fontset = ffi.gc(fontconfig.FcFontList(fontconfig.FcInitLoadConfigAndFonts(),
