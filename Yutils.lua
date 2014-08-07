@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 2nd August 2014, 06:50 (GMT+1)
+	Version: 7nd August 2014, 13:30 (GMT+1)
 	
 	Yutils
 		table
@@ -72,6 +72,7 @@
 				bit_depth() -> number
 				data_size() -> number
 				row_size() -> number
+				bottom_up() -> boolean
 				data_raw() -> string
 				data_packed() -> table
 				data_text() -> string
@@ -89,6 +90,7 @@ local MAX_CIRCUMFERENCE = 1.5	-- Circumference step size to create round edges o
 local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
 local FONT_PRECISION = 64	-- Font scale for better precision output from native font system
 local LIBASS_FONTHACK = false	-- Scale font data to fontsize? (no effect on windows)
+local LIBPNG_PATH = "libpng"	-- libpng dynamic library location or shortcut (for system library loading function)
 
 -- Load FFI interface
 local ffi = require("ffi")
@@ -407,12 +409,55 @@ end
 -- Load PNG decode library (at least try it)
 local libpng
 pcall(function()
-	libpng = ffi.load("libpng")
+	libpng = ffi.load(LIBPNG_PATH)
 	-- Set C definitions for libpng
 	ffi.cdef([[
+static const int PNG_SIGNATURE_SIZE = 8;
+typedef unsigned char png_byte;
+typedef png_byte* png_bytep;
+typedef const png_bytep png_const_bytep;
+typedef unsigned int png_size_t;
+typedef char png_char;
+typedef png_char* png_charp;
+typedef const png_charp png_const_charp;
+typedef void png_void;
+typedef png_void* png_voidp;
+typedef struct png_struct* png_structp;
+typedef const png_structp png_const_structp;
+typedef struct png_info* png_infop;
+typedef const png_infop png_const_infop;
+typedef unsigned int png_uint_32;
+typedef void (__cdecl *png_error_ptr)(png_structp, png_const_charp);
+typedef void (__cdecl *png_rw_ptr)(png_structp, png_bytep, png_size_t);
+enum{
+	PNG_TRANSFORM_STRIP_16 = 0x1,
+	PNG_TRANSFORM_PACKING = 0x4,
+	PNG_TRANSFORM_EXPAND = 0x10,
+	PNG_TRANSFORM_BGR = 0x80
+};
+enum{
+	PNG_COLOR_MASK_COLOR = 2,
+	PNG_COLOR_MASK_ALPHA = 4
+};
+enum{
+	PNG_COLOR_TYPE_RGB = PNG_COLOR_MASK_COLOR,
+	PNG_COLOR_TYPE_RGBA = PNG_COLOR_MASK_COLOR | PNG_COLOR_MASK_ALPHA
+};
 
-// TODO
-
+void* memcpy(void*, const void*, size_t);
+int png_sig_cmp(png_const_bytep, png_size_t, png_size_t);
+png_structp png_create_read_struct(png_const_charp, png_voidp, png_error_ptr, png_error_ptr);
+void png_destroy_read_struct(png_structp*, png_infop*, png_infop*);
+png_infop png_create_info_struct(png_structp);
+void png_set_read_fn(png_structp, png_voidp, png_rw_ptr);
+void png_read_png(png_structp, png_infop, int, png_voidp);
+int png_set_interlace_handling(png_structp);
+void png_read_update_info(png_structp, png_infop);
+png_uint_32 png_get_image_width(png_const_structp, png_const_infop);
+png_uint_32 png_get_image_height(png_const_structp, png_const_infop);
+png_byte png_get_color_type(png_const_structp, png_const_infop);
+png_size_t png_get_rowbytes(png_const_structp, png_const_infop);
+png_bytep* png_get_rows(png_const_structp, png_const_infop);
 	]])
 end)
 
@@ -1866,20 +1911,94 @@ Yutils = {
 				end
 			end
 			local function png_decode(filename)
-			
-				-- TODO
-			
+				-- PNG decode library available?
+				if libpng then
+					-- Open file handle
+					local file = io.open(filename, "rb")
+					if file then
+						-- Load file content & close no further needed file handle
+						local file_content = file:read("*a")
+						file:close()
+						-- Get file size
+						local file_size = #file_content
+						-- Check PNG signature
+						if file_size > ffi.C.PNG_SIGNATURE_SIZE and libpng.png_sig_cmp(ffi.cast("png_const_bytep", file_content), 0, ffi.C.PNG_SIGNATURE_SIZE) == 0 then
+							-- Create PNG data structures & set error handlers
+							local ppng, pinfo, err = ffi.new("png_structp[1]"), ffi.new("png_infop[1]")
+							local function err_func(png, message)
+								libpng.png_destroy_read_struct(ppng, pinfo, nil)
+								err = ffi.string(message)
+							end
+							ppng[0] = libpng.png_create_read_struct(ffi.cast("char*", "1.5.14"), nil, err_func, err_func)
+							if not ppng[0] then
+								return "couldn't create png read structure"
+							end
+							pinfo[0] = libpng.png_create_info_struct(ppng[0])
+							if not pinfo[0] then
+								libpng.png_destroy_read_struct(ppng, nil, nil)
+								return "couldn't create png info structure"
+							end
+							-- Decode file content to png structures
+							local file_pos, file_content_bytes = 0, ffi.cast("png_bytep", file_content)
+							libpng.png_set_read_fn(ppng[0], nil, function(png, output_bytes, required_bytes)
+								if file_pos + required_bytes <= file_size then
+									ffi.C.memcpy(output_bytes, file_content_bytes+file_pos, required_bytes)
+									file_pos = file_pos + required_bytes
+								end
+							end)
+							libpng.png_read_png(ppng[0], pinfo[0], ffi.C.PNG_TRANSFORM_STRIP_16 + ffi.C.PNG_TRANSFORM_PACKING + ffi.C.PNG_TRANSFORM_EXPAND + ffi.C.PNG_TRANSFORM_BGR, nil)
+							if err then
+								return err
+							end
+							libpng.png_set_interlace_handling(ppng[0])
+							libpng.png_read_update_info(ppng[0], pinfo[0])
+							if err then
+								return err
+							end
+							-- Get header data
+							local width, height, color_type, row_size = libpng.png_get_image_width(ppng[0], pinfo[0]), libpng.png_get_image_height(ppng[0], pinfo[0]), libpng.png_get_color_type(ppng[0], pinfo[0]), libpng.png_get_rowbytes(ppng[0], pinfo[0])
+							local data_size, bit_depth = height * row_size
+							if color_type == ffi.C.PNG_COLOR_TYPE_RGB then
+								bit_depth = 24
+							elseif color_type == ffi.C.PNG_COLOR_TYPE_RGBA then
+								bit_depth = 32
+							else
+								libpng.png_destroy_read_struct(ppng, pinfo, nil)
+								return "png data conversion to BGR(A) colorspace failed"
+							end
+							-- Get image data
+							local rows = libpng.png_get_rows(ppng[0], pinfo[0])
+							local data, data_n = {}, 0
+							for i=0, height-1 do
+								data_n = data_n + 1
+								data[data_n] = ffi.string(rows[i], row_size)
+							end
+							data = table.concat(data)
+							-- Clean up
+							libpng.png_destroy_read_struct(ppng, pinfo, nil)
+							-- Return relevant bitmap informations
+							return file_size, width, height, bit_depth, data_size, data, row_size
+						end
+					end
+				end
 			end
 			-- Try to decode file
+			local bottom_up
 			local file_size, width, height, bit_depth, data_size, data, row_size = bmp_decode(filename)
 			if not file_size then
 				file_size, width, height, bit_depth, data_size, data, row_size = png_decode(filename)
 				if not file_size then
 					error("couldn't decode file", 2)
+				elseif type(file_size) == "string" then
+					error(file_size, 2)
+				else
+					bottom_up = false
 				end
-			end
-			if type(file_size) == "string" then
+			elseif type(file_size) == "string" then
 				error(file_size, 2)
+			else
+				bottom_up = height >= 0
+				height = math.abs(height)
 			end
 			-- Return bitmap object
 			local obj
@@ -1902,16 +2021,19 @@ Yutils = {
 				row_size = function()
 					return row_size
 				end,
+				bottom_up = function()
+					return bottom_up
+				end,
 				data_raw = function()
 					return data
 				end,
 				data_packed = function()
 					local data_packed, data_packed_n = {}, 0
 					local first_row, last_row, row_step
-					if height < 0 then
-						first_row, last_row, row_step = 0, -height-1, 1
-					else
+					if bottom_up then
 						first_row, last_row, row_step = height-1, 0, -1
+					else
+						first_row, last_row, row_step = 0, height-1, 1
 					end
 					if bit_depth == 24 then
 						local last_row_item, r, g, b = (width-1)*3

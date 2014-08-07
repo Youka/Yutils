@@ -21,6 +21,5 @@ See tests and Yutils.lua first lines.
 
 TODO:
 -----
-* add bitmap reader PNG support (libpng linkage)
 * add ASS sublibrary (color/alpha/time conv, parser)
 * write detailed docs (plain text? html?)
