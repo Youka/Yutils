@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 7nd August 2014, 13:30 (GMT+1)
+	Version: 12th August 2014, 18:55 (GMT+1)
 	
 	Yutils
 		table
@@ -64,6 +64,15 @@
 			to_outline(shape, width_xy[, width_y]) -> string
 			to_pixels(shape) -> table
 			transform(shape, matrix) -> string
+		ass
+			convert_time(ass_ms) -> number|string
+			convert_coloralpha(ass_r_a[, g, b[, a] ]) -> 1,3,4 numbers|string
+			interpolate_coloralpha(pct, ass1, ass2) -> string
+			create_parser([ass_text]) -> table
+				parse_line(line) -> boolean
+				meta() -> table
+				styles() -> table
+				dialogs([config]) -> table
 		decode
 			create_bmp_reader(filename) -> table
 				file_size() -> number
@@ -76,7 +85,7 @@
 				data_raw() -> string
 				data_packed() -> table
 				data_text() -> string
-			create_font(family, bold, italic, underline, strikeout, size[, xscale, yscale, hspace]) -> table
+			create_font(family, bold, italic, underline, strikeout, size[, xscale][, yscale][, hspace]) -> table
 				metrics() -> table
 				text_extents(text) -> table
 				text_to_shape(text) -> string
@@ -1819,6 +1828,224 @@ Yutils = {
 				x, y, z, w = matrix.transform(x, y, 0)
 				return x / w, y / w
 			end)
+		end
+	},
+	-- Advanced substation alpha sublibrary
+	ass = {
+		-- Converts between milliseconds and ASS timestamp
+		convert_time = function(ass_ms)
+			-- Process by argument
+			if type(ass_ms) == "number" and ass_ms >= 0 then	-- Milliseconds
+				return string.format("%d:%02d:%02d.%02d",
+											math.floor(ass_ms / 3600000) % 10,
+											math.floor(ass_ms % 3600000 / 60000),
+											math.floor(ass_ms % 60000 / 1000),
+											math.floor(ass_ms % 1000 / 10))
+			elseif type(ass_ms) == "string" and ass_ms:find("^%d:%d%d:%d%d.%d%d$") then	-- ASS timestamp
+				return ass_ms:sub(1,1) * 10 + ass_ms:sub(3,4) * 1000 + ass_ms:sub(6,7) * 60000 + ass_ms:sub(9,10) * 3600000
+			else
+				error("milliseconds or ASS timestamp expected", 2)
+			end
+		end,
+		-- Converts between color &/+ alpha numeric and ASS color &/+ alpha
+		convert_coloralpha = function(ass_r_a, g, b, a)
+			-- Process by argument(s)
+			if type(ass_r_a) == "number" and ass_r_a >= 0 and ass_r_a <= 255 then	-- Alpha / red numeric
+				if type(g) == "number" and g >= 0 and g <= 255 and type(b) == "number" and b >= 0 and b <= 255 then	-- Green + blue numeric
+					if type(a) == "number" and a >= 0 and a <= 255 then	-- Alpha numeric
+						return string.format("&H%02X%02X%02X%02X", 255 - a, b, g, ass_r_a)
+					else
+						return string.format("&H%02X%02X%02X&", b, g, ass_r_a)
+					end
+				else
+					return string.format("&H%02X&", 255 - ass_r_a)
+				end
+			elseif type(ass_r_a) == "string" then	-- ASS value
+				if ass_r_a:find("^&H%x%x&$") then	-- ASS alpha
+					return 255 - tonumber(ass_r_a:sub(3,4), 16)
+				elseif ass_r_a:find("^&H%x%x%x%x%x%x&$") then	-- ASS color
+					return tonumber(ass_r_a:sub(7,8), 16), tonumber(ass_r_a:sub(5,6), 16), tonumber(ass_r_a:sub(3,4), 16)
+				elseif ass_r_a:find("^&H%x%x%x%x%x%x%x%x$") then	-- ASS color+alpha (style)
+					return tonumber(ass_r_a:sub(9,10), 16), tonumber(ass_r_a:sub(7,8), 16), tonumber(ass_r_a:sub(5,6), 16), 255 - tonumber(ass_r_a:sub(3,4), 16)
+				else
+					error("invalid string")
+				end
+			else
+				error("color, alpha or color+alpha as numeric or ASS expected", 2)
+			end
+		end,
+		-- Interpolates between two ASS colors &/+ alphas
+		interpolate_coloralpha = function(pct, ass1, ass2)
+			-- Check arguments
+			if type(pct) ~= "number" or pct < 0 or pct > 1 or type(ass1) ~= "string" or type(ass2) ~= "string" then
+				error("progress and two ASS values of same type (color, alpha or color+alpha) expected", 2)
+			end
+			-- Extract ASS value parts
+			local success1, ass_r_a1, g1, b1, a1 = pcall(Yutils.ass.convert_coloralpha, ass1)
+			local success2, ass_r_a2, g2, b2, a2 = pcall(Yutils.ass.convert_coloralpha, ass2)
+			if not success1 or not success2 then
+				error("invalid ASS value(s)", 2)
+			end
+			-- Process by arguments
+			if a1 and a2 then	-- Color + alpha
+				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * pct, g1 + (g2 - g1) * pct, b1 + (b2 - b1) * pct, a1 + (a2 - a1) * pct)
+			elseif b1 and not a1 and b2 and not a2 then	-- Color
+				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * pct, g1 + (g2 - g1) * pct, b1 + (b2 - b1) * pct)
+			elseif ass_r_a1 and not g1 and ass_r_a2 and not g2 then	-- Alpha
+				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * pct)
+			else
+				error("ASS values of different type", 2)
+			end
+		end,
+		-- Creates an ASS parser
+		create_parser = function(ass_text)
+			-- Check argument
+			if ass_text ~= nil and type(ass_text) ~= "string" then
+				error("optional string expected", 2)
+			end
+			-- Current section (for parsing validation)
+			local section = ""
+			-- ASS contents (just rendering relevant stuff)
+			local meta = {wrap_style = 0, scaled_border_and_shadow = true, play_res_x = 0, play_res_y = 0}
+			local styles = {}
+			local dialogs = {n = 0}
+			-- Create parser & getter object
+			local obj = {
+				parse_line = function(line)
+					-- Check argument
+					if type(line) ~= "string" then
+						error("string expected", 2)
+					end
+					-- Parse (by) section
+					if line:find("^%[.-%]$") then	-- Define section
+						section = line:sub(2,-2)
+						return true
+					elseif section == "Script Info" then	-- Meta
+						if line:find("^WrapStyle: %d$") then
+							meta.wrap_style = tonumber(line:sub(12))
+							return true
+						elseif line:find("^ScaledBorderAndShadow: %l+$") then
+							local value = line:sub(24)
+							if value == "yes" then
+								meta.scaled_border_and_shadow = true
+								return true
+							elseif value == "no" then
+								meta.scaled_border_and_shadow = false
+								return true
+							end
+						elseif line:find("^PlayResX: %d+$") then
+							meta.play_res_x = tonumber(line:sub(11))
+							return true
+						elseif line:find("^PlayResY: %d+$") then
+							meta.play_res_y = tonumber(line:sub(11))
+							return true
+						end
+					elseif section == "V4+ Styles" then	-- Styles
+						local name, fontname, fontsize, color1, color2, color3, color4,
+								bold, italic, underline, strikeout, scale_x, scale_y, spacing, angle, border_style,
+								outline, shadow, alignment, margin_l, margin_r, margin_v, encoding =
+								line:match("^Style: (.-),(.-),(%d+),(&H%x%x%x%x%x%x%x%x),(&H%x%x%x%x%x%x%x%x),(&H%x%x%x%x%x%x%x%x),(&H%x%x%x%x%x%x%x%x),(%-?[01]),(%-?[01]),(%-?[01]),(%-?[01]),(%d+%.?%d*),(%d+%.?%d*),(%-?%d+%.?%d*),(%-?%d+%.?%d*),([13]),(%d+%.?%d*),(%d+%.?%d*),([1-9]),(%d+%.?%d*),(%d+%.?%d*),(%d+%.?%d*),(%d+)$")
+						if encoding and tonumber(encoding) <= 255 then
+							local style = {
+								fontname = fontname,
+								fontsize = tonumber(fontsize),
+								bold = bold == "-1",
+								italic = italic == "-1",
+								underline = underline == "-1",
+								strikeout = strikeout == "-1",
+								scale_x = tonumber(scale_x),
+								scale_y = tonumber(scale_y),
+								spacing = tonumber(spacing),
+								angle = tonumber(angle),
+								border_style = border_style == "3",
+								outline = tonumber(outline),
+								shadow = tonumber(shadow),
+								alignment = tonumber(alignment),
+								margin_l = tonumber(margin_l),
+								margin_r = tonumber(margin_r),
+								margin_v = tonumber(margin_v),
+								encoding = tonumber(encoding)
+							}
+							local r, g, b, a = Yutils.ass.convert_coloralpha(color1)
+							style.color1 = Yutils.ass.convert_coloralpha(r, g, b)
+							style.alpha1 = Yutils.ass.convert_coloralpha(a)
+							r, g, b, a = Yutils.ass.convert_coloralpha(color2)
+							style.color2 = Yutils.ass.convert_coloralpha(r, g, b)
+							style.alpha2 = Yutils.ass.convert_coloralpha(a)
+							r, g, b, a = Yutils.ass.convert_coloralpha(color3)
+							style.color3 = Yutils.ass.convert_coloralpha(r, g, b)
+							style.alpha3 = Yutils.ass.convert_coloralpha(a)
+							r, g, b, a = Yutils.ass.convert_coloralpha(color4)
+							style.color4 = Yutils.ass.convert_coloralpha(r, g, b)
+							style.alpha4 = Yutils.ass.convert_coloralpha(a)
+							styles[name] = style
+							return true
+						end
+					elseif section == "Events" then	-- Dialogs
+						local typ, layer, start_time, end_time, style, actor, margin_l, margin_r, margin_v, effect, text =
+								line:match("^(.-): (%d+),(%d:%d%d:%d%d.%d%d),(%d:%d%d:%d%d.%d%d),(.-),(.-),(%d+%.?%d*),(%d+%.?%d*),(%d+%.?%d*),(.-),(.*)$")
+						if text and (typ == "Dialogue" or typ == "Comment") then
+							dialogs.n = dialogs.n + 1
+							dialogs[dialogs.n] = {
+								comment = typ == "Comment",
+								layer = tonumber(layer),
+								start_time = Yutils.ass.convert_time(start_time),
+								end_time = Yutils.ass.convert_time(end_time),
+								style = style,
+								actor = actor,
+								margin_l = tonumber(margin_l),
+								margin_r = tonumber(margin_r),
+								margin_v = tonumber(margin_v),
+								effect = effect,
+								text = text
+							}
+							return true
+						end
+					end
+					-- Nothing parsed
+					return false
+				end,
+				meta = function()
+					return Yutils.table.copy(meta)
+				end,
+				styles = function()
+					return Yutils.table.copy(styles)
+				end,
+				dialogs = function(config)
+					-- Check argument
+					if config ~= nil and type(config) ~= "table" then
+						error("optional configuration table expected")
+					end
+					-- Return extended dialogs
+					if config then
+						local dialogs, dialog = Yutils.table.copy(dialogs)
+						for i=1, dialogs.n do
+							dialog = dialogs[i]
+							-- Add extra data
+							if config.extra then
+								dialog.i = i
+								dialog.duration = dialog.end_time - dialog.start_time
+								dialog.text_stripped = dialog.text:gsub("{.-}", "")
+							end
+							
+							-- TODO
+							
+						end
+						return dialogs
+					-- Return raw dialogs
+					else
+						return Yutils.table.copy(dialogs)
+					end
+				end
+			}
+			-- Parse ASS text
+			if ass_text then
+				for line in Yutils.algorithm.lines(ass_text) do
+					obj.parse_line(line)	-- no errors possible
+				end
+			end
+			-- Return object
+			return obj
 		end
 	},
 	-- Decoder sublibrary

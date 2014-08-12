@@ -21,5 +21,5 @@ See tests and Yutils.lua first lines.
 
 TODO:
 -----
-* add ASS sublibrary (color/alpha/time conv, parser)
+* add ASS sublibrary (parser extensions)
 * write detailed docs (plain text? html?)
