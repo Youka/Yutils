@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 12th August 2014, 18:55 (GMT+1)
+	Version: 15th August 2014, 21:45 (GMT+1)
 	
 	Yutils
 		table
@@ -67,7 +67,7 @@
 		ass
 			convert_time(ass_ms) -> number|string
 			convert_coloralpha(ass_r_a[, g, b[, a] ]) -> 1,3,4 numbers|string
-			interpolate_coloralpha(pct, ass1, ass2) -> string
+			interpolate_coloralpha(pct, ...) -> string
 			create_parser([ass_text]) -> table
 				parse_line(line) -> boolean
 				meta() -> table
@@ -1875,26 +1875,38 @@ Yutils = {
 			end
 		end,
 		-- Interpolates between two ASS colors &/+ alphas
-		interpolate_coloralpha = function(pct, ass1, ass2)
+		interpolate_coloralpha = function(pct, ...)
+			-- Pack arguments
+			local args = {...}
+			args.n = #args
 			-- Check arguments
-			if type(pct) ~= "number" or pct < 0 or pct > 1 or type(ass1) ~= "string" or type(ass2) ~= "string" then
-				error("progress and two ASS values of same type (color, alpha or color+alpha) expected", 2)
+			if type(pct) ~= "number" or pct < 0 or pct > 1 or args.n < 2 then
+				error("progress and at least two ASS values of same type (color, alpha or color+alpha) expected", 2)
 			end
+			for i=1, args.n do
+				if type(args[i]) ~= "string" then
+					error("ASS values must be strings", 2)
+				end
+			end
+			-- Pick first ASS value for interpolation
+			local i = math.min(1 + math.floor(pct * (args.n-1)), args.n-1)
 			-- Extract ASS value parts
-			local success1, ass_r_a1, g1, b1, a1 = pcall(Yutils.ass.convert_coloralpha, ass1)
-			local success2, ass_r_a2, g2, b2, a2 = pcall(Yutils.ass.convert_coloralpha, ass2)
+			local success1, ass_r_a1, g1, b1, a1 = pcall(Yutils.ass.convert_coloralpha, args[i])
+			local success2, ass_r_a2, g2, b2, a2 = pcall(Yutils.ass.convert_coloralpha, args[i+1])
 			if not success1 or not success2 then
 				error("invalid ASS value(s)", 2)
 			end
-			-- Process by arguments
+			-- Process by ASS values type
+			local min_pct, max_pct = (i-1) / (args.n-1), i / (args.n-1)
+			local inner_pct = (pct - min_pct) / (max_pct - min_pct)
 			if a1 and a2 then	-- Color + alpha
-				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * pct, g1 + (g2 - g1) * pct, b1 + (b2 - b1) * pct, a1 + (a2 - a1) * pct)
+				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * inner_pct, g1 + (g2 - g1) * inner_pct, b1 + (b2 - b1) * inner_pct, a1 + (a2 - a1) * inner_pct)
 			elseif b1 and not a1 and b2 and not a2 then	-- Color
-				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * pct, g1 + (g2 - g1) * pct, b1 + (b2 - b1) * pct)
-			elseif ass_r_a1 and not g1 and ass_r_a2 and not g2 then	-- Alpha
-				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * pct)
+				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * inner_pct, g1 + (g2 - g1) * inner_pct, b1 + (b2 - b1) * inner_pct)
+			elseif not g1 and not g2 then	-- Alpha
+				return Yutils.ass.convert_coloralpha(ass_r_a1 + (ass_r_a2 - ass_r_a1) * inner_pct)
 			else
-				error("ASS values of different type", 2)
+				error("ASS values must be the same type", 2)
 			end
 		end,
 		-- Creates an ASS parser
@@ -2021,10 +2033,23 @@ Yutils = {
 						local dialogs, dialog = Yutils.table.copy(dialogs)
 						for i=1, dialogs.n do
 							dialog = dialogs[i]
+							--[[
+								<<TODO>>
+								all:
+									mid_time
+									width, height, ascent, descent, intlead, extlead
+									x, y, left, center, right, top, middle, bottom
+								line:
+									leadin, leadout
+									syls, word, chars
+								config:
+									extra, leadtime, sylables, words, characters, positions, vertical_edge
+							]]
 							-- Add extra data
 							if config.extra then
 								dialog.i = i
 								dialog.duration = dialog.end_time - dialog.start_time
+								dialog.styleref = styles[dialog.style]
 								dialog.text_stripped = dialog.text:gsub("{.-}", "")
 							end
 							

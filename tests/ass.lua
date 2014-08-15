@@ -4,7 +4,7 @@ print("Converted milliseconds: " .. Yutils.ass.convert_time(1500))
 print("Converted timestamp: " .. Yutils.ass.convert_time("2:03:00.04"))
 print("Converted ASS style color+alpha: ", Yutils.ass.convert_coloralpha("&H80FFFF20"))
 print("Converted numeric color: " .. Yutils.ass.convert_coloralpha(255, 127, 0))
-print("Interpolated ASS alpha: " .. Yutils.ass.interpolate_coloralpha(0.5, "&H00&", "&HFF&"))
+print("Interpolated ASS alpha: " .. Yutils.ass.interpolate_coloralpha(0.75, "&H00&", "&H40&", "&HFF&"))
 
 local parser = Yutils.ass.create_parser([[
 [Script Info]
