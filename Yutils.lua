@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 15th August 2014, 21:45 (GMT+1)
+	Version: 17th August 2014, 09:30 (GMT+1)
 	
 	Yutils
 		table
@@ -72,7 +72,7 @@
 				parse_line(line) -> boolean
 				meta() -> table
 				styles() -> table
-				dialogs([config]) -> table
+				dialogs([extended]) -> table
 		decode
 			create_bmp_reader(filename) -> table
 				file_size() -> number
@@ -1841,8 +1841,8 @@ Yutils = {
 											math.floor(ass_ms % 3600000 / 60000),
 											math.floor(ass_ms % 60000 / 1000),
 											math.floor(ass_ms % 1000 / 10))
-			elseif type(ass_ms) == "string" and ass_ms:find("^%d:%d%d:%d%d.%d%d$") then	-- ASS timestamp
-				return ass_ms:sub(1,1) * 10 + ass_ms:sub(3,4) * 1000 + ass_ms:sub(6,7) * 60000 + ass_ms:sub(9,10) * 3600000
+			elseif type(ass_ms) == "string" and ass_ms:find("^%d:%d%d:%d%d%.%d%d$") then	-- ASS timestamp
+				return ass_ms:sub(1,1) * 3600000 + ass_ms:sub(3,4) * 60000 + ass_ms:sub(6,7) * 1000 + ass_ms:sub(9,10) * 10
 			else
 				error("milliseconds or ASS timestamp expected", 2)
 			end
@@ -1995,7 +1995,7 @@ Yutils = {
 						end
 					elseif section == "Events" then	-- Dialogs
 						local typ, layer, start_time, end_time, style, actor, margin_l, margin_r, margin_v, effect, text =
-								line:match("^(.-): (%d+),(%d:%d%d:%d%d.%d%d),(%d:%d%d:%d%d.%d%d),(.-),(.-),(%d+%.?%d*),(%d+%.?%d*),(%d+%.?%d*),(.-),(.*)$")
+								line:match("^(.-): (%d+),(%d:%d%d:%d%d%.%d%d),(%d:%d%d:%d%d%.%d%d),(.-),(.-),(%d+%.?%d*),(%d+%.?%d*),(%d+%.?%d*),(.-),(.*)$")
 						if text and (typ == "Dialogue" or typ == "Comment") then
 							dialogs.n = dialogs.n + 1
 							dialogs[dialogs.n] = {
@@ -2023,39 +2023,51 @@ Yutils = {
 				styles = function()
 					return Yutils.table.copy(styles)
 				end,
-				dialogs = function(config)
+				dialogs = function(extended)
 					-- Check argument
-					if config ~= nil and type(config) ~= "table" then
-						error("optional configuration table expected")
+					if extended ~= nil and type(extended) ~= "boolean" then
+						error("optional extension flag expected")
 					end
 					-- Return extended dialogs
-					if config then
-						local dialogs, dialog = Yutils.table.copy(dialogs)
+					if extended then
+						-- Create dialogs copy & style storage
+						local dialogs, dialog_styles, dialog, style_dialogs = Yutils.table.copy(dialogs), {}
+						-- Process single dialogs
 						for i=1, dialogs.n do
 							dialog = dialogs[i]
+							style_dialogs = dialog_styles[dialog.style]
+							-- Append dialog to styles
+							if not style_dialogs then
+								style_dialogs = {n = 0}
+								dialog_styles[dialog.style] = style_dialogs
+							end
+							style_dialogs.n = style_dialogs.n + 1
+							style_dialogs[style_dialogs.n] = dialog
+							-- Add dialog extra informations
+							dialog.i = i
+							dialog.duration = dialog.end_time - dialog.start_time
+							dialog.mid_time = dialog.start_time + dialog.duration / 2
+							dialog.styleref = styles[dialog.style]
+							dialog.text_stripped = dialog.text:gsub("{.-}", "")
 							--[[
 								<<TODO>>
 								all:
-									mid_time
 									width, height, ascent, descent, intlead, extlead
 									x, y, left, center, right, top, middle, bottom
 								line:
-									leadin, leadout
 									syls, word, chars
-								config:
-									extra, leadtime, sylables, words, characters, positions, vertical_edge
 							]]
-							-- Add extra data
-							if config.extra then
-								dialog.i = i
-								dialog.duration = dialog.end_time - dialog.start_time
-								dialog.styleref = styles[dialog.style]
-								dialog.text_stripped = dialog.text:gsub("{.-}", "")
-							end
-							
-							-- TODO
-							
 						end
+						-- Add durations between dialogs
+						for _, dialogs in pairs(dialog_styles) do
+							table.sort(dialogs, function(dialog1, dialog2) return dialog1.start_time <= dialog2.start_time end)
+							for i=1, dialogs.n do
+								dialog = dialogs[i]
+								dialog.leadin = i == 1 and 1000.1 or dialog.start_time - dialogs[i-1].end_time
+								dialog.leadout = i == dialogs.n and 1000.1 or dialogs[i+1].start_time - dialog.end_time
+							end
+						end
+						-- Return modified copy
 						return dialogs
 					-- Return raw dialogs
 					else

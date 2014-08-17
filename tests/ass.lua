@@ -18,9 +18,10 @@ Style: Default,Arial,80,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,
 Style: Default2,Arial,90,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,10,10,10,1
 
 [Events]
-Dialogue: 0,0:00:00.00,0:00:20.00,Default,Anyone,0,0,0,First line,Hello
-Dialogue: 0,0:00:20.00,0:00:40.00,Default2,Someone,0,0,0,Second line,World!
+Dialogue: 0,0:00:00.00,0:00:10.00,Default,Anyone,0,0,0,First line,Hello
+Dialogue: 0,0:00:20.00,0:00:30.00,Default,Someone,0,0,0,Second line,World!
+Dialogue: 0,0:00:40.00,0:01:00.00,Default2,He/she/it,0,0,0,Third line,from Yutils!
 ]])
 print("Meta:\n" .. Yutils.table.tostring(parser.meta()))
 print("Styles:\n" .. Yutils.table.tostring(parser.styles()))
-print("Dialogs:\n" .. Yutils.table.tostring(parser.dialogs({extra=true})))
+print("Dialogs:\n" .. Yutils.table.tostring(parser.dialogs(true)))
