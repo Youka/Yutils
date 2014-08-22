@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 17th August 2014, 09:30 (GMT+1)
+	Version: 22th August 2014, 11:00 (GMT+1)
 	
 	Yutils
 		table
@@ -1938,11 +1938,8 @@ Yutils = {
 							return true
 						elseif line:find("^ScaledBorderAndShadow: %l+$") then
 							local value = line:sub(24)
-							if value == "yes" then
-								meta.scaled_border_and_shadow = true
-								return true
-							elseif value == "no" then
-								meta.scaled_border_and_shadow = false
+							if value == "yes" or value == "no" then
+								meta.scaled_border_and_shadow = value == "yes"
 								return true
 							end
 						elseif line:find("^PlayResX: %d+$") then
@@ -2030,13 +2027,22 @@ Yutils = {
 					end
 					-- Return extended dialogs
 					if extended then
+						-- Define text sizes getter
+						local function text_sizes(text, style)
+							local font = Yutils.decode.create_font(style.fontname, style.bold, style.italic, style.underline, style.strikeout, style.fontsize, style.scale_x/100, style.scale_y/100, style.spacing)
+							local extents, metrics = font.text_extents(text), font.metrics()
+							return extents.width, extents.height, metrics.ascent, metrics.descent, metrics.internal_leading, metrics.external_leading
+						end
+						if not pcall(text_sizes, "Test", {fontname="Arial",fontsize=10,bold=false,italic=false,underline=false,strikeout=false,scale_x=100,scale_y=100,spacing=0}) then	-- Fonts aren't supported/available?
+							text_sizes = nil
+						end
 						-- Create dialogs copy & style storage
 						local dialogs, dialog_styles, dialog, style_dialogs = Yutils.table.copy(dialogs), {}
 						-- Process single dialogs
 						for i=1, dialogs.n do
 							dialog = dialogs[i]
-							style_dialogs = dialog_styles[dialog.style]
 							-- Append dialog to styles
+							style_dialogs = dialog_styles[dialog.style]
 							if not style_dialogs then
 								style_dialogs = {n = 0}
 								dialog_styles[dialog.style] = style_dialogs
@@ -2049,6 +2055,47 @@ Yutils = {
 							dialog.mid_time = dialog.start_time + dialog.duration / 2
 							dialog.styleref = styles[dialog.style]
 							dialog.text_stripped = dialog.text:gsub("{.-}", "")
+							-- Add dialog text sizes and positions (if possible)
+							if text_sizes and dialog.styleref then
+								dialog.width, dialog.height, dialog.ascent, dialog.descent, dialog.internal_leading, dialog.external_leading = text_sizes(dialog.text_stripped, dialog.styleref)
+								if meta.play_res_x > 0 and meta.play_res_y > 0 then
+									-- Horizontal position
+									if (dialog.styleref.alignment-1) % 3 == 0 then
+										dialog.left = math.max(dialog.margin_l, dialog.styleref.margin_l)
+										dialog.center = dialog.left + dialog.width / 2
+										dialog.right = dialog.left + dialog.width
+										dialog.x = dialog.left
+									elseif (dialog.styleref.alignment-2) % 3 == 0 then
+										dialog.left = meta.play_res_x / 2 - dialog.width / 2
+										dialog.center = dialog.left + dialog.width / 2
+										dialog.right = dialog.left + dialog.width
+										dialog.x = dialog.center
+									else
+										dialog.left = meta.play_res_x - math.max(dialog.margin_r, dialog.styleref.margin_r) - dialog.width
+										dialog.center = dialog.left + dialog.width / 2
+										dialog.right = dialog.left + dialog.width
+										dialog.x = dialog.right
+									end
+									-- Vertical position
+									if dialog.styleref.alignment > 6 then
+										dialog.top = math.max(dialog.margin_v, dialog.styleref.margin_v)
+										dialog.middle = dialog.top + dialog.height / 2
+										dialog.bottom = dialog.top + dialog.height
+										dialog.y = dialog.top
+									elseif dialog.styleref.alignment > 3 then
+										dialog.top = meta.play_res_y / 2 - dialog.height / 2
+										dialog.middle = dialog.top + dialog.height / 2
+										dialog.bottom = dialog.top + dialog.height
+										dialog.y = dialog.middle
+									else
+										dialog.top = meta.play_res_y - math.max(dialog.margin_v, dialog.styleref.margin_v) - dialog.height
+										dialog.middle = dialog.top + dialog.height / 2
+										dialog.bottom = dialog.top + dialog.height
+										dialog.y = dialog.bottom
+									end
+								end
+							end
+							-- Get subtexts
 							--[[
 								<<TODO>>
 								all:
