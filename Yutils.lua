@@ -472,7 +472,7 @@ end)
 
 -- Helper functions
 local function roundf(x)
-	return math.floor(x * FP_PRECISION) / FP_PRECISION
+	return math.floor(x * FP_PRECISION + 0.5) / FP_PRECISION
 end
 local function rotate2d(x, y, angle)
 	local ra = math.rad(angle)
@@ -2095,15 +2095,48 @@ Yutils = {
 									end
 								end
 							end
-							-- Get subtexts
-							--[[
-								<<TODO>>
-								all:
-									width, height, ascent, descent, intlead, extlead
-									x, y, left, center, right, top, middle, bottom
-								line:
-									syls, word, chars
-							]]
+							-- Add dialog sylables
+							dialog.syls = {n = 0}
+							if dialog.text:find("^{.-}") then	-- Text has to begin with tags
+								for tags in dialog.text:gmatch("{(.-)}") do	-- Look for all tag groups
+									if not tags:find("\\[kK][of]?%d+") then	-- All tag groups have to contain karaoke times
+										goto no_sylables
+									end
+								end
+								local syl
+								for pretags, kdur, posttags, text in dialog.text:gmatch("{(.-)\\[kK][of]?(%d+)(.-)}([^{]*)") do
+									syl = {}
+									
+									-- TODO
+									
+									dialog.syls.n = dialog.syls.n + 1
+									dialog.syls[dialog.syls.n] = syl
+								end
+								::no_sylables::
+							end
+							-- Add dialog characters
+							dialog.chars = {n = 0}
+							local char
+							for char_index, char_text in Yutils.utf8.chars(dialog.text_stripped) do
+								char = {}
+								
+								-- TODO
+								
+								dialog.chars.n = dialog.chars.n + 1
+								dialog.chars[dialog.chars.n] = char
+							end
+							-- Add dialog words
+							dialog.words = {n = 0}
+							local word
+							for prespace, text, postspace in dialog.text_stripped:gmatch("(%s*)(%S+)(%s*)") do
+								word = {}
+								
+								-- TODO
+								
+								-- Add current word to dialog words
+								dialog.words.n = dialog.words.n + 1
+								dialog.words[dialog.words.n] = word
+							end
 						end
 						-- Add durations between dialogs
 						for _, dialogs in pairs(dialog_styles) do
