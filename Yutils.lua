@@ -24,7 +24,7 @@
 	Yutils
 		table
 			append(dst_t, src_t) -> table
-			copy(t) -> table
+			copy(t[, depth]) -> table
 			tostring(t) -> string
 		utf8
 			charrange(s, i) -> number
@@ -510,7 +510,7 @@ Yutils = {
 			end
 			-- Insert source table array elements to the end of destination table
 			local dst_t_n = #dst_t
-			for i, v in ipairs(src_t) do
+			for _, v in ipairs(src_t) do
 				dst_t_n = dst_t_n + 1
 				dst_t[dst_t_n] = v
 			end
@@ -518,20 +518,30 @@ Yutils = {
 			return dst_t
 		end,
 		-- Copies table deep
-		copy = function(t)
+		copy = function(t, depth)
 			-- Check argument
-			if type(t) ~= "table" then
-				error("table expected", 2)
+			if type(t) ~= "table" or depth ~= nil and not(type(depth) == "number" and depth >= 1) then
+				error("table and optional depth expected", 2)
 			end
 			-- Copy & return
-			local function copy_recursive(old_t)
+			local function copy_recursive(old_t, depth)
 				local new_t = {}
 				for key, value in pairs(old_t) do
-					new_t[key] = type(value) == "table" and copy_recursive(value) or value
+					new_t[key] = type(value) == "table" and
+										(
+											depth and
+											(
+												depth >= 2 and
+												copy_recursive(value, depth-1) or
+												value
+											) or
+											copy_recursive(value)
+										) or
+										value
 				end
 				return new_t
 			end
-			return copy_recursive(t)
+			return copy_recursive(t, depth)
 		end,
 		-- Converts table to string
 		tostring = function(t)
