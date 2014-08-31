@@ -2192,75 +2192,54 @@ Yutils = {
 					end
 					return n
 				end
-				-- Open file handle & read bitmap type from header
+				-- Open file handle
 				local file = io.open(filename, "rb")
-				if file and file:read(2) == "BM" then
-					-- Read bitmap header
-					local file_size = file:read(4)
-					if not file_size then
-						return "file size not found"
+				if file then
+					-- Read file header
+					local header = file:read(14)
+					if not header or #header ~= 14 then
+						return "couldn't read file header"
 					end
-					file_size = bton(file_size)
-					file:seek("cur", 4)	-- skip application reserved bytes
-					local data_offset = file:read(4)
-					if not data_offset then
-						return "data offset not found"
+					-- Check BMP signature
+					if header:sub(1,2) == "BM" then
+						-- Read relevant file header fields
+						local file_size, data_offset = bton(header:sub(3,6)), bton(header:sub(11,14))
+						-- Read DIB header
+						header = file:read(24)
+						if not header or #header ~= 24 then
+							return "couldn't read DIB header"
+						end
+						-- Read relevant DIB header fields
+						local width, height, planes, bit_depth, compression, data_size = bton(header:sub(5,8)), bton(header:sub(9,12)), bton(header:sub(13,14)), bton(header:sub(15,16)), bton(header:sub(17,20)), bton(header:sub(21,24))
+						-- Check read header data
+						if width >= 2^31 then
+							return "pixels in right-to-left order are not supported"
+						elseif planes ~= 1 then
+							return "planes must be 1"
+						elseif bit_depth ~= 24 and bit_depth ~= 32 then
+							return "bit depth must be 24 or 32"
+						elseif compression ~= 0 then
+							return "must be uncompressed RGB"
+						elseif data_size == 0 then
+							return "data size must not be zero"
+						end
+						-- Fix read header data
+						if height >= 2^31 then
+							height = height - 2^32
+						end
+						-- Read image data
+						file:seek("set", data_offset)
+						local data = file:read(data_size)
+						if not data or #data ~= data_size then
+							return "not enough data"
+						end
+						-- Calculate row size (round up to multiple of 4)
+						local row_size = math.floor((bit_depth * width + 31) / 32) * 4
+						-- All data read from file -> close handle (don't wait for GC)
+						file:close()
+						-- Return relevant bitmap informations
+						return file_size, width, height, bit_depth, data_size, data, row_size
 					end
-					data_offset = bton(data_offset)
-					-- DIB Header
-					file:seek("cur", 4)	-- skip header size
-					local width = file:read(4)
-					if not width then
-						return "width not found"
-					end
-					width = bton(width)
-					if width >= 2^31 then
-						return "pixels in right-to-left order are not supported"
-					end
-					local height = file:read(4)
-					if not height then
-						return "height not found"
-					end
-					height = bton(height)
-					if height >= 2^31 then
-						height = height - 2^32
-					end
-					local planes = file:read(2)
-					if not planes or bton(planes) ~= 1 then
-						return "planes must be 1"
-					end
-					local bit_depth = file:read(2)
-					if not bit_depth then
-						return "bit depth not found"
-					end
-					bit_depth = bton(bit_depth)
-					if bit_depth ~= 24 and bit_depth ~= 32 then
-						return "bit depth must be 24 or 32"
-					end
-					local compression = file:read(4)
-					if not compression or bton(compression) ~= 0 then
-						return "must be uncompressed RGB"
-					end
-					local data_size = file:read(4)
-					if not data_size then
-						return "data size not found"
-					end
-					data_size = bton(data_size)
-					if data_size == 0 then
-						return "data size must not be zero"
-					end
-					-- Data
-					file:seek("set", data_offset)
-					local data = file:read(data_size)
-					if not data or #data ~= data_size then
-						return "not enough data"
-					end
-					-- All data read from file -> close handle (don't wait for GC)
-					file:close()
-					-- Calculate row size (round up to multiple of 4)
-					local row_size = math.floor((bit_depth * width + 31) / 32) * 4
-					-- Return relevant bitmap informations
-					return file_size, width, height, bit_depth, data_size, data, row_size
 				end
 			end
 			local function png_decode(filename)
