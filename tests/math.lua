@@ -9,6 +9,6 @@ local mat = Yutils.math.create_matrix().rotate("z", 90).scale(0.5, 2, 2).transla
 print("Transformed point: ", mat.transform(0, 0, 0))
 print("Inversed matrix:\n" .. Yutils.table.tostring(mat.inverse().get_data()))
 print("Random number: " .. Yutils.math.randomsteps(-1.5, 3, 0.5))
-print("Rounded number: " .. Yutils.math.round(2.5))
+print("Rounded number: " .. Yutils.math.round(1.2345, 3))
 print("Scaled vector: ", Yutils.math.stretch(1, 0.5, -2, 3))
 print("Trimmed number: " .. Yutils.math.trim(2.1, 0, 2))

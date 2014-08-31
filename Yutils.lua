@@ -47,7 +47,7 @@
 			distance(x, y[, z]) -> number
 			ortho(x1, y1, z1, x2, y2, z2) -> number, number, number
 			randomsteps(min, max, step) -> number
-			round(x) -> number
+			round(x[, dec]) -> number
 			stretch(x, y, z, length) -> number, number, number
 			trim(x, min, max) -> number
 		algorithm
@@ -93,7 +93,7 @@
 ]]
 
 -- Configuration
-local FP_PRECISION = 1000	-- Floating point precision by divisor (for shape points)
+local FP_PRECISION = 3	-- Floating point precision by numbers behind point (for shape points)
 local CURVE_TOLERANCE = 1	-- Angle in degree to define a curve as flat
 local MAX_CIRCUMFERENCE = 1.5	-- Circumference step size to create round edges out of lines
 local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
@@ -471,9 +471,6 @@ png_bytep* png_get_rows(png_const_structp, png_const_infop);
 end)
 
 -- Helper functions
-local function roundf(x)
-	return math.floor(x * FP_PRECISION + 0.5) / FP_PRECISION
-end
 local function rotate2d(x, y, angle)
 	local ra = math.rad(angle)
 	return math.cos(ra)*x - math.sin(ra)*y,
@@ -955,13 +952,18 @@ Yutils = {
 			return math.min(min + math.random(0, math.ceil((max - min) / step)) * step, max)
 		end,
 		-- Rounds number
-		round = function(x)
+		round = function(x, dec)
 			-- Check argument
-			if type(x) ~= "number" then
-				error("number expected", 2)
+			if type(x) ~= "number" or dec ~= nil and type(dec) ~= "number" then
+				error("number and optional number expected", 2)
 			end
-			-- Return number rounded to nearest integer
-			return math.floor(x + 0.5)
+			-- Return number rounded to wished decimal size
+			if dec and dec >= 1 then
+				dec = 10^math.floor(dec)
+				return math.floor(x * dec + 0.5) / dec
+			else
+				return math.floor(x + 0.5)
+			end
 		end,
 		-- Scales vector to given length
 		stretch = function(x, y, z, length)
@@ -1301,8 +1303,8 @@ Yutils = {
 							x, token_num = filter(x, token_num, typ)
 							-- Point to replace?
 							if type(x) == "number" and type(token_num) == "number" then
-								new_point = typ and string.format("%s %s %s", typ, roundf(x), roundf(token_num)) or
-												string.format("%s %s", roundf(x), roundf(token_num))
+								new_point = typ and string.format("%s %s %s", typ, Yutils.math.round(x, FP_PRECISION), Yutils.math.round(token_num, FP_PRECISION)) or
+												string.format("%s %s", Yutils.math.round(x, FP_PRECISION), Yutils.math.round(token_num, FP_PRECISION))
 								shape = string.format("%s%s%s", shape:sub(1, point_start-1), new_point, shape:sub(token_end+1))
 								token_end = point_start + #new_point - 1
 							end
@@ -1395,7 +1397,7 @@ Yutils = {
 							-- Convert curve to lines
 							local line_points = curve4_to_lines(x0, y0, x1, y1, x2, y2, x3, y3)
 							for i=1, #line_points do
-								line_points[i] = roundf(line_points[i])
+								line_points[i] = Yutils.math.round(line_points[i], FP_PRECISION)
 							end
 							line_curve = table.concat(line_points, " ")
 							shape = string.format("%s%s%s", shape:sub(1, curve_start-1), line_curve, shape:sub(curve_end+1))
@@ -1512,12 +1514,12 @@ Yutils = {
 					for cur_distance = distance_rest > 0 and distance_rest or max_len, distance, max_len do
 						pct = cur_distance / distance
 						lines_n = lines_n + 1
-						lines[lines_n] = string.format("%s %s", roundf(x0 + rel_x * pct), roundf(y0 + rel_y * pct))
+						lines[lines_n] = string.format("%s %s", Yutils.math.round(x0 + rel_x * pct, FP_PRECISION), Yutils.math.round(y0 + rel_y * pct, FP_PRECISION))
 					end
 					return table.concat(lines, " ")
 				-- No line split
 				else
-					return string.format("%s %s", roundf(x1), roundf(y1))
+					return string.format("%s %s", Yutils.math.round(x1, FP_PRECISION), Yutils.math.round(y1, FP_PRECISION))
 				end
 			end
 			-- Build new shape with shorter lines
@@ -1544,7 +1546,7 @@ Yutils = {
 				end
 				-- Add current point or splitted line to new shape
 				new_shape_n = new_shape_n + 1
-				new_shape[new_shape_n] = line_mode and last_point and line_split(last_point[1], last_point[2], x, y) or string.format("%s %s", roundf(x), roundf(y))
+				new_shape[new_shape_n] = line_mode and last_point and line_split(last_point[1], last_point[2], x, y) or string.format("%s %s", Yutils.math.round(x, FP_PRECISION), Yutils.math.round(y, FP_PRECISION))
 				-- Update last point & move
 				last_point = {x, y}
 				if typ == "m" then
@@ -1673,7 +1675,7 @@ Yutils = {
 						outline_n = outline_n + 1
 						outline[outline_n] = string.format("%s%s %s",
 																	outline_n == 1 and "m " or outline_n == 2 and "l " or "",
-																	roundf(point[1] + o_vec1_x * xscale), roundf(point[2] + o_vec1_y * yscale))
+																	Yutils.math.round(point[1] + o_vec1_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + o_vec1_y * yscale, FP_PRECISION))
 						-- Round edge needed?
 						if circ > MAX_CIRCUMFERENCE then
 							local circ_rest = circ % MAX_CIRCUMFERENCE
@@ -1682,7 +1684,7 @@ Yutils = {
 								outline_n = outline_n + 1
 								outline[outline_n] = string.format("%s%s %s",
 																			outline_n == 1 and "m " or outline_n == 2 and "l " or "",
-																			roundf(point[1] + curve_vec_x * xscale), roundf(point[2] + curve_vec_y * yscale))
+																			Yutils.math.round(point[1] + curve_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + curve_vec_y * yscale, FP_PRECISION))
 							end
 						end
 					end
@@ -2583,8 +2585,8 @@ Yutils = {
 										shape[shape_n] = "m"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = roundf(cur_point.x * downscale * xscale)
-									shape[shape_n+2] = roundf(cur_point.y * downscale * yscale)
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * downscale * xscale, FP_PRECISION)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * downscale * yscale, FP_PRECISION)
 									shape_n = shape_n + 2
 									i = i + 1
 								elseif cur_type == ffi.C.PT_LINETO or cur_type == (ffi.C.PT_LINETO + ffi.C.PT_CLOSEFIGURE) then
@@ -2593,8 +2595,8 @@ Yutils = {
 										shape[shape_n] = "l"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = roundf(cur_point.x * downscale * xscale)
-									shape[shape_n+2] = roundf(cur_point.y * downscale * yscale)
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * downscale * xscale, FP_PRECISION)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * downscale * yscale, FP_PRECISION)
 									shape_n = shape_n + 2
 									i = i + 1
 								elseif cur_type == ffi.C.PT_BEZIERTO or cur_type == (ffi.C.PT_BEZIERTO + ffi.C.PT_CLOSEFIGURE) then
@@ -2603,12 +2605,12 @@ Yutils = {
 										shape[shape_n] = "b"
 										last_type = cur_type
 									end
-									shape[shape_n+1] = roundf(cur_point.x * downscale * xscale)
-									shape[shape_n+2] = roundf(cur_point.y * downscale * yscale)
-									shape[shape_n+3] = roundf(points[i+1].x * downscale * xscale)
-									shape[shape_n+4] = roundf(points[i+1].y * downscale * yscale)
-									shape[shape_n+5] = roundf(points[i+2].x * downscale * xscale)
-									shape[shape_n+6] = roundf(points[i+2].y * downscale * yscale)
+									shape[shape_n+1] = Yutils.math.round(cur_point.x * downscale * xscale, FP_PRECISION)
+									shape[shape_n+2] = Yutils.math.round(cur_point.y * downscale * yscale, FP_PRECISION)
+									shape[shape_n+3] = Yutils.math.round(points[i+1].x * downscale * xscale, FP_PRECISION)
+									shape[shape_n+4] = Yutils.math.round(points[i+1].y * downscale * yscale, FP_PRECISION)
+									shape[shape_n+5] = Yutils.math.round(points[i+2].x * downscale * xscale, FP_PRECISION)
+									shape[shape_n+6] = Yutils.math.round(points[i+2].y * downscale * yscale, FP_PRECISION)
 									shape_n = shape_n + 6
 									i = i + 3
 								else	-- invalid type (should never happen, but let us be safe)
@@ -2716,28 +2718,28 @@ Yutils = {
 										shape_n = shape_n + 1
 										shape[shape_n] = "m"
 									end
-									shape[shape_n+1] = roundf(path[0].data[i+1].point.x)
-									shape[shape_n+2] = roundf(path[0].data[i+1].point.y)
+									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x, FP_PRECISION)
+									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y, FP_PRECISION)
 									shape_n = shape_n + 2
 								elseif cur_type == ffi.C.CAIRO_PATH_LINE_TO then
 									if cur_type ~= last_type then
 										shape_n = shape_n + 1
 										shape[shape_n] = "l"
 									end
-									shape[shape_n+1] = roundf(path[0].data[i+1].point.x)
-									shape[shape_n+2] = roundf(path[0].data[i+1].point.y)
+									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x, FP_PRECISION)
+									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y, FP_PRECISION)
 									shape_n = shape_n + 2
 								elseif cur_type == ffi.C.CAIRO_PATH_CURVE_TO then
 									if cur_type ~= last_type then
 										shape_n = shape_n + 1
 										shape[shape_n] = "b"
 									end
-									shape[shape_n+1] = roundf(path[0].data[i+1].point.x)
-									shape[shape_n+2] = roundf(path[0].data[i+1].point.y)
-									shape[shape_n+3] = roundf(path[0].data[i+2].point.x)
-									shape[shape_n+4] = roundf(path[0].data[i+2].point.y)
-									shape[shape_n+5] = roundf(path[0].data[i+3].point.x)
-									shape[shape_n+6] = roundf(path[0].data[i+3].point.y)
+									shape[shape_n+1] = Yutils.math.round(path[0].data[i+1].point.x, FP_PRECISION)
+									shape[shape_n+2] = Yutils.math.round(path[0].data[i+1].point.y, FP_PRECISION)
+									shape[shape_n+3] = Yutils.math.round(path[0].data[i+2].point.x, FP_PRECISION)
+									shape[shape_n+4] = Yutils.math.round(path[0].data[i+2].point.y, FP_PRECISION)
+									shape[shape_n+5] = Yutils.math.round(path[0].data[i+3].point.x, FP_PRECISION)
+									shape[shape_n+6] = Yutils.math.round(path[0].data[i+3].point.y, FP_PRECISION)
 									shape_n = shape_n + 6
 								elseif cur_type == ffi.C.CAIRO_PATH_CLOSE_PATH then
 									if cur_type ~= last_type then
