@@ -6,8 +6,7 @@ Requirements:
 
 Files:
 ------
-* Yutils.lua (*the library as script*)
-* Yutils.luac (*the library as bytecode*)
+* Yutils.lua (*the library*)
 * README.md (*this file*)
 * tests/ (*folder with example scripts of Yutils' usage*)
 * luajit/ (*LuaJIT compiler&interpreter for executing this project's files*)

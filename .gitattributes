@@ -9,9 +9,6 @@
 # Source code
 *.lua	diff=lua
 
-# Binaries
-*.luac	binary
-
 # Images
 *.bmp	binary
 *.png	binary
