@@ -471,6 +471,7 @@ png_bytep* png_get_rows(png_const_structp, png_const_infop);
 end)
 
 -- Helper functions
+local unpack = table.unpack or unpack
 local function rotate2d(x, y, angle)
 	local ra = math.rad(angle)
 	return math.cos(ra)*x - math.sin(ra)*y,
@@ -678,11 +679,7 @@ Yutils = {
 					angle_sum = angle_sum + 90
 				until angle_sum >= angle
 				-- Return curve points as tuple
-				if unpack then
-					return unpack(curves)
-				else
-					return table.unpack(curves)
-				end
+				return unpack(curves)
 			end
 		end,
 		-- Get point on n-degree bezier curve
