@@ -2104,47 +2104,75 @@ Yutils = {
 									end
 								end
 							end
+							-- Add dialog text chunks
+							dialog.text_chunked = {n = 0}
+							do
+								-- Has tags+text chunks?
+								local chunk_start, chunk_end = dialog.text:find("{.-}")
+								if not chunk_start then
+									dialog.text_chunked = {n = 1, {tags = "", text = dialog.text}}
+								else
+									-- First chunk without tags
+									if chunk_start ~= 1 then
+										dialog.text_chunked.n = dialog.text_chunked.n + 1
+										dialog.text_chunked[dialog.text_chunked.n] = {tags = "", text = dialog.text:sub(1, chunk_start-1)}
+									end
+									-- Chunks with tags
+									local chunk2_start, chunk2_end
+									repeat
+										chunk2_start, chunk2_end = dialog.text:find("{.-}", chunk_end+1)
+										dialog.text_chunked.n = dialog.text_chunked.n + 1
+										dialog.text_chunked[dialog.text_chunked.n] = {tags = dialog.text:sub(chunk_start+1, chunk_end-1), text = dialog.text:sub(chunk_end+1, chunk2_start and chunk2_start-1 or -1)}
+										chunk_start, chunk_end = chunk2_start, chunk2_end
+									until not chunk_start
+								end
+							end
 							-- Add dialog sylables
 							dialog.syls = {n = 0}
-							if dialog.text:find("^{.-}") then	-- Text has to begin with tags
-								for tags in dialog.text:gmatch("{(.-)}") do	-- Look for all tag groups
-									if not tags:find("\\[kK][of]?%d+") then	-- All tag groups have to contain karaoke times
-										goto no_sylables
+							do
+								local text_chunk, pretags, kdur, posttags, syl
+								for i=1, dialog.text_chunked.n do
+									text_chunk = dialog.text_chunked[i]
+									pretags, kdur, posttags = text_chunk.tags:match("(.-)\\[kK][of]?(%d+)(.*)")
+									if posttags then	-- All tag groups have to contain karaoke times or everything is invalid (=no sylables there)
+										syl = {}
+										
+										-- TODO
+										
+										dialog.syls.n = dialog.syls.n + 1
+										dialog.syls[dialog.syls.n] = syl
+									else
+										dialog.syls = {n = 0}
+										break
 									end
 								end
-								local syl
-								for pretags, kdur, posttags, text in dialog.text:gmatch("{(.-)\\[kK][of]?(%d+)(.-)}([^{]*)") do
-									syl = {}
-									
-									-- TODO
-									
-									dialog.syls.n = dialog.syls.n + 1
-									dialog.syls[dialog.syls.n] = syl
-								end
-								::no_sylables::
 							end
 							-- Add dialog characters
 							dialog.chars = {n = 0}
-							local char
-							for char_index, char_text in Yutils.utf8.chars(dialog.text_stripped) do
-								char = {}
-								
-								-- TODO
-								
-								dialog.chars.n = dialog.chars.n + 1
-								dialog.chars[dialog.chars.n] = char
+							do
+								local char
+								for char_index, char_text in Yutils.utf8.chars(dialog.text_stripped) do
+									char = {}
+									
+									-- TODO
+									
+									dialog.chars.n = dialog.chars.n + 1
+									dialog.chars[dialog.chars.n] = char
+								end
 							end
 							-- Add dialog words
 							dialog.words = {n = 0}
-							local word
-							for prespace, text, postspace in dialog.text_stripped:gmatch("(%s*)(%S+)(%s*)") do
-								word = {}
-								
-								-- TODO
-								
-								-- Add current word to dialog words
-								dialog.words.n = dialog.words.n + 1
-								dialog.words[dialog.words.n] = word
+							do
+								local word
+								for prespace, text, postspace in dialog.text_stripped:gmatch("(%s*)(%S+)(%s*)") do
+									word = {}
+									
+									-- TODO
+									
+									-- Add current word to dialog words
+									dialog.words.n = dialog.words.n + 1
+									dialog.words[dialog.words.n] = word
+								end
 							end
 						end
 						-- Add durations between dialogs
