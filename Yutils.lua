@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 22th August 2014, 11:00 (GMT+1)
+	Version: 9th September 2014, 11:55 (GMT+1)
 	
 	Yutils
 		table
@@ -2130,15 +2130,25 @@ Yutils = {
 							-- Add dialog sylables
 							dialog.syls = {n = 0}
 							do
-								local text_chunk, pretags, kdur, posttags, syl
+								local last_time, text_chunk, pretags, kdur, posttags, syl = 0
 								for i=1, dialog.text_chunked.n do
 									text_chunk = dialog.text_chunked[i]
 									pretags, kdur, posttags = text_chunk.tags:match("(.-)\\[kK][of]?(%d+)(.*)")
 									if posttags then	-- All tag groups have to contain karaoke times or everything is invalid (=no sylables there)
-										syl = {}
+										syl = {
+											i = dialog.syls.n + 1,
+											start_time = last_time,
+											mid_time = last_time + kdur * 10 / 2,
+											end_time = last_time + kdur * 10,
+											duration = kdur * 10,
+											tags = pretags .. posttags
+										}
+										syl.prespace, syl.text, syl.postspace = text_chunk.text:match("(%s*)(%S*)(%s*)")
+										syl.prespace, syl.postspace = syl.prespace:len(), syl.postspace:len()
 										
-										-- TODO
+										-- TODO: sizes & positions
 										
+										last_time = syl.end_time
 										dialog.syls.n = dialog.syls.n + 1
 										dialog.syls[dialog.syls.n] = syl
 									else
@@ -2152,9 +2162,16 @@ Yutils = {
 							do
 								local char
 								for char_index, char_text in Yutils.utf8.chars(dialog.text_stripped) do
-									char = {}
+									char = {
+										i = dialog.chars.n + 1,
+										start_time = dialog.start_time,
+										mid_time = dialog.mid_time,
+										end_time = dialog.end_time,
+										duration = dialog.duration,
+										text = char_text
+									}
 									
-									-- TODO
+									-- TODO: sizes, positions & references (syl, word)
 									
 									dialog.chars.n = dialog.chars.n + 1
 									dialog.chars[dialog.chars.n] = char
@@ -2164,10 +2181,19 @@ Yutils = {
 							dialog.words = {n = 0}
 							do
 								local word
-								for prespace, text, postspace in dialog.text_stripped:gmatch("(%s*)(%S+)(%s*)") do
-									word = {}
+								for prespace, word_text, postspace in dialog.text_stripped:gmatch("(%s*)(%S+)(%s*)") do
+									word = {
+										i = dialog.words.n + 1,
+										start_time = dialog.start_time,
+										mid_time = dialog.mid_time,
+										end_time = dialog.end_time,
+										duration = dialog.duration,
+										text = word_text,
+										prespace = prespace:len(),
+										postspace = postspace:len()
+									}
 									
-									-- TODO
+									-- TODO: sizes&positions
 									
 									-- Add current word to dialog words
 									dialog.words.n = dialog.words.n + 1
