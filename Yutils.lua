@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 9th September 2014, 11:55 (GMT+1)
+	Version: 9th September 2014, 12:20 (GMT+1)
 	
 	Yutils
 		table
@@ -1099,12 +1099,12 @@ Yutils = {
 			for i=2, data_n do
 				for j=1, elements.n do
 					if compare_func(data[i], elements[j].value) then
-						goto element_found
+						goto trace_element_found
 					end
 				end
 				elements.n = elements.n + 1
 				elements[elements.n] = {value = type(data[i]) == "table" and Yutils.table.copy(data[i]) or data[i]}
-				::element_found::
+				::trace_element_found::
 			end
 			-- Detection helper functions
 			local function index_to_x(i)
@@ -2157,26 +2157,6 @@ Yutils = {
 									end
 								end
 							end
-							-- Add dialog characters
-							dialog.chars = {n = 0}
-							do
-								local char
-								for char_index, char_text in Yutils.utf8.chars(dialog.text_stripped) do
-									char = {
-										i = dialog.chars.n + 1,
-										start_time = dialog.start_time,
-										mid_time = dialog.mid_time,
-										end_time = dialog.end_time,
-										duration = dialog.duration,
-										text = char_text
-									}
-									
-									-- TODO: sizes, positions & references (syl, word)
-									
-									dialog.chars.n = dialog.chars.n + 1
-									dialog.chars[dialog.chars.n] = char
-								end
-							end
 							-- Add dialog words
 							dialog.words = {n = 0}
 							do
@@ -2193,11 +2173,55 @@ Yutils = {
 										postspace = postspace:len()
 									}
 									
-									-- TODO: sizes&positions
+									-- TODO: sizes & positions
 									
 									-- Add current word to dialog words
 									dialog.words.n = dialog.words.n + 1
 									dialog.words[dialog.words.n] = word
+								end
+							end
+							-- Add dialog characters
+							dialog.chars = {n = 0}
+							do
+								local char, char_index, syl, word
+								for _, char_text in Yutils.utf8.chars(dialog.text_stripped) do
+									char = {
+										i = dialog.chars.n + 1,
+										start_time = dialog.start_time,
+										mid_time = dialog.mid_time,
+										end_time = dialog.end_time,
+										duration = dialog.duration,
+										text = char_text
+									}
+									char_index = 0
+									for i=1, dialog.syls.n do
+										syl = dialog.syls[i]
+										for _ in Yutils.utf8.chars(string.format("%s%s%s", string.rep(" ", syl.prespace), syl.text, string.rep(" ", syl.postspace))) do
+											char_index = char_index + 1
+											if char_index == char.i then
+												char.syl_i = syl.i
+												goto syl_reference_found
+											end
+										end
+									end
+									::syl_reference_found::
+									char_index = 0
+									for i=1, dialog.words.n do
+										word = dialog.words[i]
+										for _ in Yutils.utf8.chars(string.format("%s%s%s", string.rep(" ", word.prespace), word.text, string.rep(" ", word.postspace))) do
+											char_index = char_index + 1
+											if char_index == char.i then
+												char.word_i = word.i
+												goto word_reference_found
+											end
+										end
+									end
+									::word_reference_found::
+									
+									-- TODO: sizes & positions
+									
+									dialog.chars.n = dialog.chars.n + 1
+									dialog.chars[dialog.chars.n] = char
 								end
 							end
 						end
@@ -2819,7 +2843,7 @@ Yutils = {
 					for i=1, fonts.n do
 						font = fonts[i]
 						if font.name == fontname and font.style == style then
-							goto font_found
+							goto win_font_found
 						end
 					end
 					-- Add font entry
@@ -2830,7 +2854,7 @@ Yutils = {
 						style = style,
 						type = fonttype == ffi.C.FONTTYPE_RASTER and "Raster" or fonttype == ffi.C.FONTTYPE_DEVICE and "Device" or fonttype == ffi.C.FONTTYPE_TRUETYPE and "TrueType" or "Unknown",
 					}
-					::font_found::
+					::win_font_found::
 					-- Continue enumeration (till end)
 					return 1
 				end, 0, 0)
