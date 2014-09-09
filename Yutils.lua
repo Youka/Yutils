@@ -2145,9 +2145,14 @@ Yutils = {
 										}
 										syl.prespace, syl.text, syl.postspace = text_chunk.text:match("(%s*)(%S*)(%s*)")
 										syl.prespace, syl.postspace = syl.prespace:len(), syl.postspace:len()
+										if text_sizes and dialog.styleref then
+											syl.width, syl.height, syl.ascent, syl.descent, syl.internal_leading, syl.external_leading = text_sizes(syl.text, dialog.styleref)
+											if meta.play_res_x > 0 and meta.play_res_y > 0 then
 										
-										-- TODO: sizes & positions
+												-- TODO: sylable positions
 										
+											end
+										end
 										last_time = syl.end_time
 										dialog.syls.n = dialog.syls.n + 1
 										dialog.syls[dialog.syls.n] = syl
@@ -2172,9 +2177,14 @@ Yutils = {
 										prespace = prespace:len(),
 										postspace = postspace:len()
 									}
-									
-									-- TODO: sizes & positions
-									
+									if text_sizes and dialog.styleref then
+										word.width, word.height, word.ascent, word.descent, word.internal_leading, word.external_leading = text_sizes(word.text, dialog.styleref)
+										if meta.play_res_x > 0 and meta.play_res_y > 0 then
+										
+											-- TODO: word positions
+										
+										end
+									end
 									-- Add current word to dialog words
 									dialog.words.n = dialog.words.n + 1
 									dialog.words[dialog.words.n] = word
@@ -2217,9 +2227,14 @@ Yutils = {
 										end
 									end
 									::word_reference_found::
-									
-									-- TODO: sizes & positions
-									
+									if text_sizes and dialog.styleref then
+										char.width, char.height, char.ascent, char.descent, char.internal_leading, char.external_leading = text_sizes(char.text, dialog.styleref)
+										if meta.play_res_x > 0 and meta.play_res_y > 0 then
+										
+											-- TODO: character positions
+										
+										end
+									end
 									dialog.chars.n = dialog.chars.n + 1
 									dialog.chars[dialog.chars.n] = char
 								end
