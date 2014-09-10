@@ -20,5 +20,5 @@ See tests and Yutils.lua first lines.
 
 TODO:
 -----
-* add ASS sublibrary (parser extensions)
+* add WAV reader (+ frequencies analyzer)
 * write detailed docs (plain text? html?)
