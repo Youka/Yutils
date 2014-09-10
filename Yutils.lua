@@ -2046,7 +2046,7 @@ Yutils = {
 							text_sizes = nil
 						end
 						-- Create dialogs copy & style storage
-						local dialogs, dialog_styles, dialog, style_dialogs = Yutils.table.copy(dialogs), {}
+						local dialogs, dialog_styles, dialog, style_dialogs, space_width = Yutils.table.copy(dialogs), {}
 						-- Process single dialogs
 						for i=1, dialogs.n do
 							dialog = dialogs[i]
@@ -2103,6 +2103,7 @@ Yutils = {
 										dialog.y = dialog.bottom
 									end
 								end
+								space_width = text_sizes(" ", dialog.styleref)
 							end
 							-- Add dialog text chunks
 							dialog.text_chunked = {n = 0}
@@ -2131,6 +2132,7 @@ Yutils = {
 							dialog.syls = {n = 0}
 							do
 								local last_time, text_chunk, pretags, kdur, posttags, syl = 0
+								-- Get sylables from text chunks
 								for i=1, dialog.text_chunked.n do
 									text_chunk = dialog.text_chunked[i]
 									pretags, kdur, posttags = text_chunk.tags:match("(.-)\\[kK][of]?(%d+)(.*)")
@@ -2147,11 +2149,6 @@ Yutils = {
 										syl.prespace, syl.postspace = syl.prespace:len(), syl.postspace:len()
 										if text_sizes and dialog.styleref then
 											syl.width, syl.height, syl.ascent, syl.descent, syl.internal_leading, syl.external_leading = text_sizes(syl.text, dialog.styleref)
-											if meta.play_res_x > 0 and meta.play_res_y > 0 then
-										
-												-- TODO: sylable positions
-										
-											end
 										end
 										last_time = syl.end_time
 										dialog.syls.n = dialog.syls.n + 1
@@ -2159,6 +2156,34 @@ Yutils = {
 									else
 										dialog.syls = {n = 0}
 										break
+									end
+								end
+								-- Calculate sylable positions with all sylables data already available
+								if dialog.syls.n > 0 and dialog.syls[1].width and meta.play_res_x > 0 and meta.play_res_y > 0 then
+									if dialog.styleref.alignment > 6 or dialog.styleref.alignment < 4 then
+										local cur_x = dialog.left
+										for i=1, dialog.syls.n do
+											syl = dialog.syls[i]
+											-- Horizontal position
+											-- TODO
+											-- Vertical position
+											-- TODO
+										end
+									else
+										local max_width, sum_height = 0, 0
+										for i=1, dialog.syls.n do
+											syl = dialog.syls[i]
+											max_width = math.max(max_width, syl.width)
+											sum_height = sum_height + syl.height
+										end
+										local cur_y = meta.play_res_y / 2 - sum_height / 2
+										for i=1, dialog.syls.n do
+											syl = dialog.syls[i]
+											-- Horizontal position
+											-- TODO
+											-- Vertical position
+											-- TODO
+										end
 									end
 								end
 							end
@@ -2179,15 +2204,38 @@ Yutils = {
 									}
 									if text_sizes and dialog.styleref then
 										word.width, word.height, word.ascent, word.descent, word.internal_leading, word.external_leading = text_sizes(word.text, dialog.styleref)
-										if meta.play_res_x > 0 and meta.play_res_y > 0 then
-										
-											-- TODO: word positions
-										
-										end
 									end
 									-- Add current word to dialog words
 									dialog.words.n = dialog.words.n + 1
 									dialog.words[dialog.words.n] = word
+								end
+								-- Calculate word positions with all words data already available
+								if dialog.words.n > 0 and dialog.words[1].width and meta.play_res_x > 0 and meta.play_res_y > 0 then
+									if dialog.styleref.alignment > 6 or dialog.styleref.alignment < 4 then
+										local cur_x = dialog.left
+										for i=1, dialog.words.n do
+											word = dialog.words[i]
+											-- Horizontal position
+											-- TODO
+											-- Vertical position
+											-- TODO
+										end
+									else
+										local max_width, sum_height = 0, 0
+										for i=1, dialog.words.n do
+											word = dialog.words[i]
+											max_width = math.max(max_width, word.width)
+											sum_height = sum_height + word.height
+										end
+										local cur_y = meta.play_res_y / 2 - sum_height / 2
+										for i=1, dialog.words.n do
+											word = dialog.words[i]
+											-- Horizontal position
+											-- TODO
+											-- Vertical position
+											-- TODO
+										end
+									end
 								end
 							end
 							-- Add dialog characters
@@ -2233,14 +2281,37 @@ Yutils = {
 									::word_reference_found::
 									if text_sizes and dialog.styleref then
 										char.width, char.height, char.ascent, char.descent, char.internal_leading, char.external_leading = text_sizes(char.text, dialog.styleref)
-										if meta.play_res_x > 0 and meta.play_res_y > 0 then
-										
-											-- TODO: character positions
-										
-										end
 									end
 									dialog.chars.n = dialog.chars.n + 1
 									dialog.chars[dialog.chars.n] = char
+								end
+								-- Calculate character positions with all characters data already available
+								if dialog.chars.n > 0 and dialog.chars[1].width and meta.play_res_x > 0 and meta.play_res_y > 0 then
+									if dialog.styleref.alignment > 6 or dialog.styleref.alignment < 4 then
+										local cur_x = dialog.left
+										for i=1, dialog.chars.n do
+											char = dialog.chars[i]
+											-- Horizontal position
+											-- TODO
+											-- Vertical position
+											-- TODO
+										end
+									else
+										local max_width, sum_height = 0, 0
+										for i=1, dialog.chars.n do
+											char = dialog.chars[i]
+											max_width = math.max(max_width, char.width)
+											sum_height = sum_height + char.height
+										end
+										local cur_y = meta.play_res_y / 2 - sum_height / 2
+										for i=1, dialog.chars.n do
+											char = dialog.chars[i]
+											-- Horizontal position
+											-- TODO
+											-- Vertical position
+											-- TODO
+										end
+									end
 								end
 							end
 						end
