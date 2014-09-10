@@ -2210,6 +2210,10 @@ Yutils = {
 											char_index = char_index + 1
 											if char_index == char.i then
 												char.syl_i = syl.i
+												char.start_time = syl.start_time
+												char.mid_time = syl.mid_time
+												char.end_time = syl.end_time
+												char.duration = syl.duration
 												goto syl_reference_found
 											end
 										end
