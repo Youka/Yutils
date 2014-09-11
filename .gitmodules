@@ -1,3 +1,6 @@
 [submodule "luajit"]
 	path = deps/luajit
 	url = https://github.com/LuaDist/luajit
+[submodule "libpng"]
+	path = deps/libpng
+	url = http://git.code.sf.net/p/libpng/code
