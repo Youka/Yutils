@@ -1,4 +1,4 @@
-local Yutils = dofile("../Yutils.lua")
+local Yutils = dofile("../src/Yutils.lua")
 
 local s = "Äの"
 print("Length: " .. Yutils.utf8.len(s))

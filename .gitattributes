@@ -6,13 +6,14 @@
 .gitignore	text
 .gitmodules	text
 
+# Documentations
+*.md	text
+*.html	diff=html
+*.css	diff=css
+
 # Source code
 *.lua	diff=lua
 
 # Images
 *.bmp	binary
 *.png	binary
-
-
-# Documentations
-*.md	text

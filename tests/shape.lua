@@ -1,4 +1,4 @@
-local Yutils = dofile("../Yutils.lua")
+local Yutils = dofile("../src/Yutils.lua")
 
 local shape = "m -100.5 0 l 100 0 b 100 100 -100 100 -100.5 0 c"
 print("Bounding: ", Yutils.shape.bounding(shape))

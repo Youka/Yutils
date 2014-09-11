@@ -1,4 +1,4 @@
-local Yutils = dofile("../Yutils.lua")
+local Yutils = dofile("../src/Yutils.lua")
 
 print("Converted milliseconds: " .. Yutils.ass.convert_time(1500))
 print("Converted timestamp: " .. Yutils.ass.convert_time("2:03:00.04"))

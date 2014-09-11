@@ -6,17 +6,18 @@ Requirements:
 
 Files:
 ------
-* Yutils.lua (*the library*)
-* README.md (*this file*)
-* tests/ (*folder with example scripts of Yutils' usage*)
-* luajit/ (*LuaJIT compiler&interpreter for executing this project's files*)
-* .gitignore (*files to ignore by Git*)
+* deps/ (*folder with project dependencies*)
+* docs/ (*folder with project documentations*)
+* src/ (*folder with library modules*)
+* tests/ (*folder with example scripts of library usage*)
 * .gitattributes (*how Git should handle files*)
-* .gitmodules (*submodules of this project*)
+* .gitignore (*files to ignore by Git*)
+* .gitmodules (*submodules of this Git project*)
+* README.md (*this file [you're currently reading]*)
 
-Docs:
+Documentations:
 -----
-See tests and Yutils.lua first lines.
+See **docs/index.html** for descriptions and **tests/\*** for executable examples.
 
 TODO:
 -----

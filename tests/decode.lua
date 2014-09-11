@@ -1,4 +1,4 @@
-local Yutils = dofile("../Yutils.lua")
+local Yutils = dofile("../src/Yutils.lua")
 
 local bmp = Yutils.decode.create_bmp_reader("test.png")
 print("File size: " .. bmp.file_size())
