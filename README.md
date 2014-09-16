@@ -3,7 +3,7 @@ Yutils - an ASS typeset utilities library
 Requirements:
 -------------
 * LuaJIT (*interpreter for Lua scripts, using this library*)
-* libpng (*PNG image decoder for library bitmap reader*)
+* libpng (*PNG image decoder for library bitmap reader*) [optional]
 
 Files:
 ------

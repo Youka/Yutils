@@ -23,7 +23,6 @@
 	
 	Yutils
 		table
-			append(dst_t, src_t) -> table
 			copy(t[, depth]) -> table
 			tostring(t) -> string
 		utf8
@@ -526,21 +525,6 @@ local Yutils
 Yutils = {
 	-- Table sublibrary
 	table = {
-		-- Appends table to table
-		append = function(dst_t, src_t)
-			-- Check arguments
-			if type(dst_t) ~= "table" or type(src_t) ~= "table" then
-				error("2 tables expected", 2)
-			end
-			-- Insert source table array elements to the end of destination table
-			local dst_t_n = #dst_t
-			for _, v in ipairs(src_t) do
-				dst_t_n = dst_t_n + 1
-				dst_t[dst_t_n] = v
-			end
-			-- Return (modified) destination table
-			return dst_t
-		end,
 		-- Copies table deep
 		copy = function(t, depth)
 			-- Check argument
