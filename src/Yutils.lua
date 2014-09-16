@@ -85,6 +85,20 @@
 				data_raw() -> string
 				data_packed() -> table
 				data_text() -> string
+			create_wav_reader(filename) -> table
+				file_size() -> number
+				channels_number() -> number
+				sample_rate() -> number
+				byte_rate() -> number
+				block_align() -> number
+				bits_per_sample() -> number
+				samples_per_channel() -> number
+				min_max_amplitude() -> number, number
+				sample_from_ms(ms) -> number
+				ms_from_sample(sample) -> number
+				position([pos]) -> number
+				samples_interlaced(n) -> table
+				samples(n) -> table
 			create_font(family, bold, italic, underline, strikeout, size[, xscale][, yscale][, hspace]) -> table
 				metrics() -> table
 				text_extents(text) -> table
@@ -476,6 +490,15 @@ local function rotate2d(x, y, angle)
 	local ra = math.rad(angle)
 	return math.cos(ra)*x - math.sin(ra)*y,
 		math.sin(ra)*x + math.cos(ra)*y
+end
+local function bton(s)
+	-- Get numeric presentation (=byte) of string characters
+	local bytes, n = {s:byte(1,-1)}, 0
+	-- Combine bytes to unsigned integer number
+	for i = 0, #bytes-1 do
+		n = n + bytes[1+i] * 2^(i*8)
+	end
+	return n
 end
 local function utf8_to_utf16(s)
 	-- Get resulting utf16 characters number (+ null-termination)
@@ -2442,14 +2465,6 @@ Yutils = {
 			end
 			-- Image decoders
 			local function bmp_decode(filename)
-				-- Convert little-endian bytes string to Lua number
-				local function bton(s)
-					local bytes, n = {s:byte(1,#s)}, 0
-					for i = 0, #bytes-1 do
-						n = n + bytes[1+i] * 2^(i*8)
-					end
-					return n
-				end
 				-- Open file handle
 				local file = io.open(filename, "rb")
 				if file then
@@ -2696,6 +2711,156 @@ Yutils = {
 			}
 			return obj
 		end,
+		-- Create WAV file reader
+		create_wav_reader = function(filename)
+			-- Check argument
+			if type(filename) ~= "string" then
+				error("audio filename expected", 2)
+			end
+			-- Open file handle
+			local file = io.open(filename, "rb")
+			if not file then
+				error("couldn't open file", 2)
+			end
+			-- Read file header
+			local header = file:read(12)
+			if not header or #header ~= 12 then
+				error("couldn't read file header", 2)
+			-- Check WAVE signature
+			elseif header:sub(1,4) ~= "RIFF" or header:sub(9,12) ~= "WAVE" then
+				error("not a wave file", 2)
+			end
+			-- Data to save (+ read relevant file header field)
+			local file_size, channels_number, sample_rate, byte_rate, block_align, bits_per_sample = bton(header:sub(5,8)) + 8	-- remaining + already read bytes
+			local data_begin, data_end
+			-- Read file chunks
+			local chunk_type, chunk_size
+			while true do
+				-- Read single chunk
+				chunk_type, chunk_size = file:read(4), file:read(4)
+				if not chunk_size or #chunk_size ~= 4 then
+					break
+				end
+				chunk_size = bton(chunk_size)
+				-- Identify chunk type
+				if chunk_type == "fmt " then
+					-- Read format informations
+					header = file:read(16)
+					if chunk_size < 16 or not header or #header ~= 16 then
+						error("format chunk corrupted", 2)
+					elseif bton(header:sub(1,2)) ~= 1 then
+						error("data must be in PCM format", 2)
+					end
+					channels_number, sample_rate, byte_rate, block_align, bits_per_sample = bton(header:sub(3,4)), bton(header:sub(5,8)), bton(header:sub(9,12)), bton(header:sub(13,14)), bton(header:sub(15,16))
+					if bits_per_sample ~= 8 and bits_per_sample ~= 16 and bits_per_sample ~= 24 and bits_per_sample ~= 32 then
+						error("bits per sample must be 8, 16, 24 or 32", 2)
+					elseif channels_number == 0 or sample_rate == 0 or byte_rate == 0 or block_align == 0 then
+						error("invalid format data", 2)
+					end
+					file:seek("cur", chunk_size-16)
+				elseif chunk_type == "data" then
+					-- Save samples reference
+					data_begin = file:seek()
+					data_end = data_begin + chunk_size
+					file:seek("cur", chunk_size)
+				else
+					-- Skip chunk
+					file:seek("cur", chunk_size)
+				end
+			end
+			-- Check all needed data are read
+			if not bits_per_sample or not data_end then
+				error("format or data are missing", 2)
+			end
+			-- Calculate extra data
+			local samples_per_channel = (data_end - data_begin) / block_align
+			-- Set file pointer ready for data reading
+			file:seek("set", data_begin)
+			-- Return wave object
+			local obj
+			obj = {
+				file_size = function()
+					return file_size
+				end,
+				channels_number = function()
+					return channels_number
+				end,
+				sample_rate = function()
+					return sample_rate
+				end,
+				byte_rate = function()
+					return byte_rate
+				end,
+				block_align = function()
+					return block_align
+				end,
+				bits_per_sample = function()
+					return bits_per_sample
+				end,
+				samples_per_channel = function()
+					return samples_per_channel
+				end,
+				min_max_amplitude = function()
+					local half_level = 2^bits_per_sample / 2
+					return -half_level, half_level-1
+				end,
+				sample_from_ms = function(ms)
+					if type(ms) ~= "number" or ms < 0 then
+						error("positive number expected", 2)
+					end
+					return ms * 0.001 * sample_rate
+				end,
+				ms_from_sample = function(sample)
+					if type(sample) ~= "number" or sample < 0 then
+						error("positive number expected", 2)
+					end
+					return sample / sample_rate * 1000
+				end,
+				position = function(pos)
+					if pos ~= nil and (type(pos) ~= "number" or pos < 0) then
+						error("optional positive number expected", 2)
+					elseif pos then
+						file:seek("set", data_begin + pos * block_align)
+					end
+					return (file:seek() - data_begin) / block_align
+				end,
+				samples_interlaced = function(n)
+					if type(n) ~= "number" or math.floor(n) < 1 then
+						error("positive number greater-equal one expected", 2)
+					end
+					local output, bytes = {n = 0}, file:read(math.floor(n) * block_align)
+					if bytes then
+						local bytes_per_sample, sample = bits_per_sample / 8
+						local max_amplitude, amplitude_fix = ({127, 32767, 8388607, 2147483647})[bytes_per_sample], ({256, 65536, 16777216, 4294967296})[bytes_per_sample]
+						for i=1, #bytes, bytes_per_sample do
+							sample = bton(bytes:sub(i,i+bytes_per_sample-1))
+							output.n = output.n + 1
+							output[output.n] = sample > max_amplitude and sample - amplitude_fix or sample
+						end
+					end
+					return output
+				end,
+				samples = function(n)
+					local success, samples = pcall(obj.samples_interlaced, n)
+					if not success then
+						error(samples, 2)
+					end
+					local output, channel_samples = {n = channels_number}
+					for c=1, output.n do
+						channel_samples = {n = samples.n / channels_number}
+						for s=1, channel_samples.n do
+							channel_samples[s] = samples[c + (s-1) * channels_number]
+						end
+						output[c] = channel_samples
+					end
+					return output
+				end
+			}
+			return obj
+		end,
+		
+		-- TODO: frequency analyzer (+ utility functions)
+		
 		-- Creates font
 		create_font = function(family, bold, italic, underline, strikeout, size, xscale, yscale, hspace)
 			-- Check arguments

@@ -17,3 +17,6 @@
 # Images
 *.bmp	binary
 *.png	binary
+
+# Audio
+*.wav	binary
