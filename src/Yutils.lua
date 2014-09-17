@@ -98,6 +98,10 @@
 				position([pos]) -> number
 				samples_interlaced(n) -> table
 				samples(n) -> table
+			create_frequency_analyzer(samples, sample_rate) -> table
+				frequencies() -> table
+				frequency_weight(freq) -> number
+				frequency_range_weight(freq_min, freq_max) -> number
 			create_font(family, bold, italic, underline, strikeout, size[, xscale][, yscale][, hspace]) -> table
 				metrics() -> table
 				text_extents(text) -> table
@@ -2831,7 +2835,7 @@ Yutils = {
 					end
 					local output, channel_samples = {n = channels_number}
 					for c=1, output.n do
-						channel_samples = {n = samples.n / channels_number}
+						channel_samples = {n = math.floor(samples.n / channels_number)}
 						for s=1, channel_samples.n do
 							channel_samples[s] = samples[c + (s-1) * channels_number]
 						end
@@ -2842,9 +2846,151 @@ Yutils = {
 			}
 			return obj
 		end,
-		
-		-- TODO: frequency analyzer (+ utility functions)
-		
+		create_frequency_analyzer = function(samples, sample_rate)
+			-- Check arguments
+			if type(samples) ~= "table" or type(sample_rate) ~= "number" or sample_rate < 2 or sample_rate % 2 ~= 0 then
+				error("samples table and sample rate expected", 2)
+			end
+			local samples_n = #samples
+			if samples_n < 2 then
+				error("not enough samples", 2)
+			end
+			local sample
+			for i=1, samples_n do
+				sample = samples[i]
+				if type(sample) ~= "number" then
+					error("samples have to be numbers", 2)
+				elseif sample < -1 or sample > 1 then
+					error("samples have to be in range -1 <> 1", 2)
+				end
+			end
+			-- Fix samples number to power of 2 for further processing
+			samples_n = 2^math.floor(math.log(samples_n, 2))
+			-- Complex numbers
+			local complex_t
+			do
+				local complex = {}
+				complex_t = function(r, i)
+					return setmetatable({r = r, i = i}, complex)
+				end
+				local function tocomplex(a, b)
+					if getmetatable(a) ~= complex then return {r = a, i = 0}, b
+					elseif getmetatable(b) ~= complex then return a, {r = b, i = 0}
+					else return a, b end
+				end
+				complex.__add = function(a, b)
+					local c1, c2 = tocomplex(a, b)
+					return complex_t(c1.r + c2.r, c1.i + c2.i)
+				end
+				complex.__sub = function(a, b)
+					local c1, c2 = tocomplex(a, b)
+					return complex_t(c1.r - c2.r, c1.i - c2.i)
+				end
+				complex.__mul = function(a, b)
+					local c1, c2 = tocomplex(a, b)
+					return complex_t(c1.r * c2.r - c1.i * c2.i, c1.r * c2.i + c1.i * c2.r)
+				end
+			end
+			local function polar(theta)
+				return complex_t(math.cos(theta), math.sin(theta))
+			end
+			local function magnitude(c)
+				return math.sqrt(c.r^2 + c.i^2)
+			end
+			-- Fast Fourier Transformation
+			local function fft(x)
+				-- Check recursion break
+				local N = x.n
+				if N > 1 then
+					-- Divide
+					local even, odd = {n = 0}, {n = 0}
+					for i=1, N, 2 do
+						even.n = even.n + 1
+						even[even.n] = x[i]
+					end
+					for i=2, N, 2 do
+						odd.n = odd.n + 1
+						odd[odd.n] = x[i]
+					end
+					-- Conquer
+					fft(even)
+					fft(odd)
+					--Combine
+					local t
+					for k = 1, N/2 do
+						t = polar(-2 * math.pi * (k-1) / N) * odd[k]
+						x[k] = even[k] + t
+						x[k+N/2] = even[k] - t
+					end
+				end
+			end
+			-- Samples to complex numbers
+			local data = {n = samples_n}
+			for i = 1, data.n do
+				data[i] = complex_t(samples[i], 0)
+			end
+			-- Process FFT
+			fft(data)
+			-- Complex numbers to frequencies domain data
+			for i = 1, data.n do
+				data[i] = magnitude(data[i])
+			end
+			-- Extract frequencies weights
+			local frequencies, frequency_sum, sample_rate_half = {n = data.n / 2}, 0, sample_rate / 2
+			for i=1, frequencies.n do
+				frequency_sum = frequency_sum + data[i]
+			end
+			if frequency_sum == 0 then
+				frequencies[1] = {freq = 0, weight = 1}
+				for i=2, frequencies.n do
+					frequencies[i] = {freq = (i-1) / (frequencies.n-1) * sample_rate_half, weight = 0}
+				end
+			else
+				for i=1, frequencies.n do
+					frequencies[i] = {freq = (i-1) / (frequencies.n-1) * sample_rate_half, weight = data[i] / frequency_sum}
+				end
+			end
+			-- Return frequencies object
+			return {
+				frequencies = function()
+					return Yutils.table.copy(frequencies)
+				end,
+				frequency_weight = function(freq)
+					if type(freq) ~= "number" or freq < 0 or freq > sample_rate_half then
+						error("valid frequency expected", 2)
+					end
+					local frequency
+					for i=1, frequencies.n do
+						frequency = frequencies[i]
+						if frequency.freq == freq then
+							return frequency.weight
+						elseif frequency.freq > freq then
+							local frequency_last = frequencies[i-1]
+							return (freq - frequency_last.freq) / (frequency.freq - frequency_last.freq) * (frequency.weight - frequency_last.weight) + frequency_last.weight
+						end
+					end
+				end,
+				frequency_range_weight = function(freq_min, freq_max)
+					if type(freq_min) ~= "number" or freq_min < 0 or freq_min > sample_rate_half or
+						type(freq_max) ~= "number" or freq_max < 0 or freq_max > sample_rate_half or
+						freq_min > freq_max then
+						error("valid frequencies expected", 2)
+					end
+					local weight_sum, frequency = 0
+					for i=1, frequencies.n do
+						frequency = frequencies[i]
+						if frequency.freq >= freq_min then
+							if frequency.freq <= freq_max then
+								weight_sum = weight_sum + frequency.weight
+							else
+								break
+							end
+						end
+					end
+					return weight_sum
+				end
+			}
+		end,
 		-- Creates font
 		create_font = function(family, bold, italic, underline, strikeout, size, xscale, yscale, hspace)
 			-- Check arguments
