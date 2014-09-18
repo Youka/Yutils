@@ -1,5 +1,5 @@
 # Auto detect text files and perform LF normalization
-*	text=auto
+*		text=auto
 
 # Git files
 .gitattributes	text
@@ -13,6 +13,7 @@
 
 # Source code
 *.lua	diff=lua
+*.js	diff=js
 
 # Images
 *.bmp	binary

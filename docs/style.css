@@ -1,0 +1,27 @@
+body{
+	color: white;
+	background-color: black;
+	margin: 0px;
+}
+
+noscript{
+	color: white;
+	background-color: red;
+	font: bold 24px Arial;
+	display: block;
+	text-align: center;
+	padding: 5px;
+	border-bottom: ridge 4px white;
+}
+
+div.contents{
+	
+}
+
+div.section{
+	color: black;
+	background-color: #F0F0F0;
+	display: inline-block;
+	margin: 5px;
+	border: 4px groove #0808FF;
+}

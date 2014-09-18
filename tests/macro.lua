@@ -171,7 +171,7 @@ local function load_macro()
 										Yutils.shape.flatten(
 											text_shape
 										),
-										1.5
+										1
 									),
 									function(x,y)
 										return x + math.sin(y * config.wobble_frequency_x * math.pi * 2) * config.wobble_strength_x,

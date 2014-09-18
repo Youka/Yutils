@@ -19,7 +19,3 @@ Files:
 Documentations:
 -----
 See **docs/index.html** for descriptions and **tests/\*** for executable examples.
-
-TODO:
------
-* write detailed docs (plain text? html?)
