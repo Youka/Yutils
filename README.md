@@ -18,4 +18,4 @@ Files:
 
 Documentations:
 -----
-See **docs/index.html** for descriptions and **tests/\*** for executable examples.
+See **docs/index.html** for descriptions and **tests/\*.lua** for executable examples.

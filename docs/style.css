@@ -14,14 +14,98 @@ noscript{
 	border-bottom: ridge 4px white;
 }
 
+h1{
+	font-family: Tahoma;
+	font-size: 40px;
+	text-align: center;
+	margin: 0px;
+	text-shadow: -1px -1px 1px #FF0000,
+				1px -1px 1px #FFFF00,
+				1px 1px 1px #0000FF,
+				-1px 1px 1px #00FF00,
+				0px -1px 1px #FF8000,
+				1px 0px 1px #808080,
+				0px 1px 1px #008080,
+				-1px 0px 1px #808000;
+	background: #202020;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	cursor: default;
+}
+
+h1 span{
+	display: block;
+	font-size: 16px;
+}
+
+hr{
+	margin: 0px;
+	background-color: #A0A0A0;
+	border: dotted 2px #606060;
+}
+
+a{
+	color: black;
+	text-decoration: none;
+}
+
 div.contents{
-	
+	cursor: pointer;
+	background-color: white;
+	border: double 6px #404040;
+	top: 0;
+	right: 0;
+	position: fixed;
+	overflow: hidden;
+	width: 0;
+}
+div.contents:hover{
+	width: auto;
+}
+
+div.contents a.contents{
+	font-weight: bold;
+	font-size: 16px;
+	display: table;
+	margin: 5px;
+}
+div.contents a.contents:hover{
+	text-shadow: 0px 0px 2px black;
 }
 
 div.section{
 	color: black;
 	background-color: #F0F0F0;
-	display: inline-block;
-	margin: 5px;
-	border: 4px groove #0808FF;
+	display: table;
+	margin: 0px 0px 0px 5px;
+	border: 4px ridge #0808FF;
+	padding: 4px;
+}
+
+div.section a{
+	color: #000080;
+}
+
+div.section a:hover{
+	color: blue;
+}
+
+span#section{
+	font-size: 20px;
+	font-weight: bold;
+	text-shadow: -2px -2px 1px #8080FF,
+				0px -2px 1px #8080FF,
+				2px -2px 1px #000080,
+				2px 0px 1px #000080,
+				2px 2px 1px #000080,
+				0px 2px 1px #000080,
+				-2px 2px 1px #000080,
+				-2px 0px 1px #8080FF;
+	line-height: 0px;
+	position: relative;
+	left: 10px;
+	top: 10px;
 }
