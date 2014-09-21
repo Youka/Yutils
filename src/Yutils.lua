@@ -115,7 +115,7 @@ local CURVE_TOLERANCE = 1	-- Angle in degree to define a curve as flat
 local MAX_CIRCUMFERENCE = 1.5	-- Circumference step size to create round edges out of lines
 local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
 local FONT_PRECISION = 64	-- Font scale for better precision output from native font system
-local LIBASS_FONTHACK = false	-- Scale font data to fontsize? (no effect on windows)
+local LIBASS_FONTHACK = true	-- Scale font data to fontsize? (no effect on windows)
 local LIBPNG_PATH = "libpng"	-- libpng dynamic library location or shortcut (for system library loading function)
 
 -- Load FFI interface
