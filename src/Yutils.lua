@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 10th September 2014, 14:40 (GMT+1)
+	Version: 21th September 2014, 08:10 (GMT+1)
 	
 	Yutils
 		table
@@ -621,9 +621,7 @@ Yutils = {
 			-- Return utf8 characters iterator
 			local char_i, s_pos, s_len = 0, 1, #s
 			return function()
-				if s_pos > s_len then
-					return
-				else
+				if s_pos <= s_len then
 					char_i = char_i + 1
 					local cur_pos = s_pos
 					s_pos = s_pos + Yutils.utf8.charrange(s, s_pos)
@@ -707,10 +705,8 @@ Yutils = {
 			--Factorial
 			local function fac(n)
 				local k = 1
-				if n > 1 then
-					for i=2, n do
-						k = k * i
-					end
+				for i=2, n do
+					k = k * i
 				end
 				return k
 			end
@@ -942,7 +938,7 @@ Yutils = {
 		-- Length of vector
 		distance = function(x, y, z)
 			-- Check arguments
-			if type(x) ~= "number" or type(y) ~= "number" or (z ~= nil and type(z) ~= "number") then
+			if type(x) ~= "number" or type(y) ~= "number" or z ~= nil and type(z) ~= "number" then
 				error("one vector (2 or 3 numbers) expected", 2)
 			end
 			-- Calculate length
@@ -1022,14 +1018,10 @@ Yutils = {
 			-- Return iterator
 			return function()
 				i = i + 1
-				if i > n then
-					return
-				else
+				if i <= n then
 					local ret_starts = starts + (i-1) * dur
 					local ret_ends = ret_starts + dur
-					if dur < 0 and ret_ends < ends then
-						ret_ends = ends
-					elseif dur > 0 and ret_ends > ends then
+					if dur < 0 and ret_ends < ends or dur > 0 and ret_ends > ends then
 						ret_ends = ends
 					end
 					return ret_starts, ret_ends, i, n
@@ -1086,10 +1078,11 @@ Yutils = {
 			local x0, y0, x1, y1
 			-- Calculate minimal and maximal coordinates
 			Yutils.shape.filter(shape, function(x, y)
-				x0 = x0 and math.min(x0, x) or x
-				y0 = y0 and math.min(y0, y) or y
-				x1 = x1 and math.max(x1, x) or x
-				y1 = y1 and math.max(y1, y) or y
+				if x0 then
+					x0, y0, x1, y1 = math.min(x0, x), math.min(y0, y), math.max(x1, x), math.max(y1, y)
+				else
+					x0, y0, x1, y1 = x, y, x, y
+				end
 			end)
 			return x0, y0, x1, y1
 		end,
