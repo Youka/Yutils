@@ -78,7 +78,7 @@ div.contents a.contents:hover{
 
 div.section{
 	color: black;
-	background-color: #F0F0F0;
+	background-color: #E0E0E0;
 	display: table;
 	margin: 0px 0px 0px 5px;
 	border: 4px ridge #0808FF;
@@ -88,7 +88,6 @@ div.section{
 div.section a{
 	color: #000080;
 }
-
 div.section a:hover{
 	color: blue;
 }
@@ -108,4 +107,30 @@ span#section{
 	position: relative;
 	left: 10px;
 	top: 10px;
+}
+
+ul{
+	margin: 0px;
+	padding-left: 18px;
+}
+
+div.code{
+	margin: 5px;
+	padding: 4px;
+	white-space: pre;
+	display: inline-block;
+	max-height: 300px;
+	overflow-y: auto;
+	border: solid 3px black;
+	background-color: #C0C0C0;
+}
+div.code:hover{
+	margin: 3px;
+	border: solid 5px black;
+	background-color: white;
+}
+td.linenumbers{
+	display: none;
+	border-left: solid 1px grey;
+	background-color: #D0D0D0;
 }

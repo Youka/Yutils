@@ -3,7 +3,7 @@
 
 <head>
 <title>Yutils</title>
-<base href="" target="_blank" />
+<base href="" target="_self" />
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <meta http-equiv="content-style-type" content="text/css">
 <meta http-equiv="content-script-type" content="text/javascript">
@@ -26,13 +26,33 @@ For some functionality javascript is required! Please activate it if you want to
 <hr>
 <div class="contents"></div>
 <div class="section" id="Description">
-<b>Yutils</b> is a <a href="http://lua.org">Lua</a> library with functions for media decoding, shape manipulation, advanced math, utf-8 coded texts, ASS (Advanced Substation Alpha) script parsing and with some other small helpers.
+<b>Yutils</b> is a <a href="http://lua.org">Lua</a> library with functions for media decoding, shape manipulation, advanced math, utf-8 coded texts, ASS (Advanced Substation Alpha) script parsing and with some other small helpers.<br>
+She was written to run with <a href="http://luajit.org/luajit.html">LuaJIT</a>, working with Lua 5.2 syntax and <a href="http://en.wikipedia.org/wiki/Foreign_function_interface">FFI</a>.<br>
 </div>
 <div class="section" id="Install">
-TODO
+Yutils runs without (additional) dependencies with <b>LuaJIT 2</b> as interpreter, though some functionality might require to install a library. So far, just some decodings, like fonts and PNG images, could lead you to some handwork.<br>
+The base is just <u>one Lua script</u>, not more. Include and use it in your project, no frills beside.<br>
+<br>
+<u>What you can extend:</u>
+<ul>
+<li>On Unix, <a href="http://pango.org/">pango</a>, <a href="http://cairographics.org/">cairo</a> and <a href="http://fontconfig.org">fontconfig</a> is needed for font support (most distributions should have them as system libraries).</li>
+<li><a href="http://www.libpng.org/pub/png/libpng.html">libpng</a> is needed for PNG support of the image reader.</li>
+</ul>
+<br>
+How Yutils work can be influenced by changes in her configuration which is a few local variables at the code beginning (directly after the first comment lines).<br>
+For example, lowering the value of <i>CURVE_TOLERANCE</i> could cause to smoother edges on curve flattening, same time resulting in more output lines and slower calculation. The default values are already well considered in weight of enough usefulness and perfection insanity, so be careful when changing anything (values don't get checked, so you could break things).
+</div>
+<div class="section" id="Usage">
+Yutils consists of functions only, packed in sublibrary tables, those packed in one library table which you get from library file loading.<br>
+<div class="code">local Yutils = require("Yutils")
+local Ymath = Yutils.math
+
+print(Ymath.distance(1,1))
+-- 1.4142135623731</div>
 </div>
 <div class="section" id="Functions">
-TODO
+
+
 </div>
 </body>
 
