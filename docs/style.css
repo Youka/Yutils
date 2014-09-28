@@ -66,14 +66,17 @@ div.contents:hover{
 	width: auto;
 }
 
-div.contents a.contents{
+div.contents a.contents, div.contents a.subcontents{
 	font-weight: bold;
 	font-size: 16px;
 	display: table;
 	margin: 5px;
 }
-div.contents a.contents:hover{
+div.contents a.contents:hover, div.contents a.subcontents:hover{
 	text-shadow: 0px 0px 2px black;
+}
+div.contents a.subcontents{
+	padding-left: 12px;
 }
 
 div.section{
@@ -109,6 +112,22 @@ span#section{
 	top: 10px;
 }
 
+div.section div.function{
+	margin: 6px;
+	border: dotted 1px black;
+	font-size: 14px;
+}
+div.section div.function span.definition{
+	font-weight: bold;
+	font-size: 18px;
+}
+div.section div.function span.definition span.function_return{
+	color: green;
+}
+div.section div.function span.definition span.function_parameters{
+	color: red;
+}
+
 ul{
 	margin: 0px;
 	padding-left: 18px;
@@ -129,6 +148,7 @@ div.code:hover{
 	border: solid 5px black;
 	background-color: white;
 }
+
 td.linenumbers{
 	display: none;
 	border-left: solid 1px grey;
