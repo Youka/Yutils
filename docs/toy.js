@@ -3,6 +3,52 @@ Element.prototype.prependChild = function(child){
 	this.insertBefore(child, this.firstChild);
 }
 
+// Get computed final style of element
+Element.prototype.getStyle = function(){
+	return this.currentStyle || window.getComputedStyle(this);
+}
+
+// Get width of browser scrollbar
+function getScrollBarWidth(){
+	// Barwidth not already known?
+	if(!getScrollBarWidth.prototype.barWidth){
+		// Create outer+inner box
+		var outerBox = document.createElement("div"),
+			innerBox = document.createElement("div");
+		// Set box widths
+		outerBox.style.width = "100px";
+		innerBox.style.width = "100%";
+		// Give outer box a scrollbar
+		outerBox.style.overflow = "scroll";
+		// Set outer box invisible (no effect on displayed elements)
+		outerBox.style.visibility = "hidden";
+		outerBox.style.position = "fixed";
+		outerBox.style.left = 0;
+		outerBox.style.top = 0;
+		// Link boxes to parent elements (for data generation)
+		outerBox.appendChild(innerBox);
+		document.body.appendChild(outerBox);
+		// Save scrollbar width
+		getScrollBarWidth.prototype.barWidth = (outerBox.offsetWidth - innerBox.offsetWidth) + "px";
+		// Remove boxes (no further need)
+		document.body.removeChild(outerBox);
+	}
+	// Return saved barwidth
+	return getScrollBarWidth.prototype.barWidth;
+}
+
+// Add element padding/space for scrollbar to not cover content
+function fixScrollBar(elem, direction){
+	if((!direction || direction == "vertical") && elem.clientHeight < elem.scrollHeight){
+		elem.style.paddingRight = getScrollBarWidth();
+		elem.style.overflowX = "hidden";
+	}
+	if((!direction || direction == "horizontal") && elem.clientWidth < elem.scrollWidth){
+		elem.style.paddingBottom = getScrollBarWidth();
+		elem.style.overflowY = "hidden";
+	}
+}
+
 // Execute on page load finished
 window.addEventListener("load", function(evt){
 	// Process contents table and sections
@@ -46,6 +92,8 @@ window.addEventListener("load", function(evt){
 					link.appendChild(document.createTextNode(funcName));
 					link.className = "subcontents";
 					contents.appendChild(link);
+					if(/[A-Z]\./.test(funcName))
+						link.style.paddingLeft = parseInt(link.getStyle().paddingLeft) * 2 + "px";
 					// Add anchor to section
 					anchor = document.createElement("a");
 					anchor.name = funcName;
@@ -71,6 +119,7 @@ window.addEventListener("load", function(evt){
 			}
 		}
 	}
+	fixScrollBar(contents, "vertical");
 	// Process code chunks
 	var codes = document.getElementsByClassName("code");
 	for(var i = 0; i < codes.length; ++i){
@@ -89,7 +138,7 @@ window.addEventListener("load", function(evt){
 			codeText.appendChild(code.firstChild.cloneNode());
 			code.replaceChild(codeText,code.firstChild);
 			// Transfer padding from code box to cells
-			var codeStyle = code.currentStyle || window.getComputedStyle(code);
+			var codeStyle = code.getStyle();
 			numberBar.style.paddingLeft = codeStyle.paddingLeft,
 			numberBar.style.paddingRight = codeStyle.paddingRight,
 			numberBar.style.paddingTop = codeStyle.paddingTop,
@@ -100,10 +149,7 @@ window.addEventListener("load", function(evt){
 			codeText.style.paddingBottom = codeStyle.paddingBottom,
 			code.style.padding = 0;
 			// Add right space for vertical scrollbar (on appearance)
-			if(code.scrollHeight > code.clientHeight){
-				code.style.paddingRight = "18px";	// Just an estimation, based on Firefox (PC)
-				code.style.overflowX = "hidden";
-			}
+			fixScrollBar(code, "vertical");
 			// Set code highlight
 			code.addEventListener("mouseover", function(){
 				numberBar.style.display = "table-cell";

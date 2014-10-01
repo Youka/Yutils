@@ -59,6 +59,310 @@ TODO
 table_description = table.tostring(t)<br>
 TODO
 </div>
+<div class="function">
+range = utf8.charrange(s, i)<br>
+TODO
+</div>
+<div class="function">
+chars_iter = utf8.chars(s)<br>
+TODO
+</div>
+<div class="function">
+length = utf8.len(s)<br>
+TODO
+</div>
+<div class="function">
+c0x0, c0y0, c0x1, c0y1, c0x2, c0y2, c0x3, c0y3[, c1x0, c1y0, c1x1, c1y1, c1x2, c1y2, c1x3, c1y3[, c2x0, c2y0, c2x1, c2y1, c2x2, c2y2, c2x3, c2y3[, c3x0, c3y0, c3x1, c3y1, c3x2, c3y2, c3x3, c3y3]]] = math.arc_curve(x, y, cx, cy, angle)<br>
+TODO
+</div>
+<div class="function">
+x, y, z = math.bezier(pct, pts)<br>
+TODO
+</div>
+<div class="function">
+MATRIX = math.create_matrix()<br>
+TODO
+</div>
+<div class="function">
+matrix_fields = MATRIX.get_data()<br>
+TODO
+</div>
+<div class="function">
+matrix = MATRIX.set_data(matrix_fields)<br>
+TODO
+</div>
+<div class="function">
+matrix = MATRIX.identity()<br>
+TODO
+</div>
+<div class="function">
+matrix = MATRIX.multiply(matrix_fields)<br>
+TODO
+</div>
+<div class="function">
+matrix = MATRIX.translate(x, y, z)<br>
+TODO
+</div>
+<div class="function">
+matrix = MATRIX.scale(x, y, z)<br>
+TODO
+</div>
+<div class="function">
+matrix = MATRIX.rotate(axis, angle)<br>
+TODO
+</div>
+<div class="function">
+[matrix] = MATRIX.inverse()<br>
+TODO
+</div>
+<div class="function">
+rx, ry, rz, rw = MATRIX.transform(x, y, z[, w])<br>
+TODO
+</div>
+<div class="function">
+degree = math.degree(x1, y1, z1, x2, y2, z2)<br>
+TODO
+</div>
+<div class="function">
+length = math.distance(x, y[, z])<br>
+TODO
+</div>
+<div class="function">
+rx, ry, rz = math.ortho(x1, y1, z1, x2, y2, z2)<br>
+TODO
+</div>
+<div class="function">
+r = math.randomsteps(min, max, step)<br>
+TODO
+</div>
+<div class="function">
+r = math.round(x[, dec])<br>
+TODO
+</div>
+<div class="function">
+rx, ry, rz = math.stretch(x, y, z, length)<br>
+TODO
+</div>
+<div class="function">
+r = math.trim(x, min, max)<br>
+TODO
+</div>
+<div class="function">
+frames_iter = algorithm.frames(starts, ends, dur)<br>
+TODO
+</div>
+<div class="function">
+lines_iter = algorithm.lines(text)<br>
+TODO
+</div>
+<div class="function">
+x0, y0, x1, y1 = shape.bounding(shape)<br>
+TODO
+</div>
+<div class="function">
+shapes = shape.detect(width, height, data[, compare_func])<br>
+TODO
+</div>
+<div class="function">
+new_shape = shape.filter(shape, filter)<br>
+TODO
+</div>
+<div class="function">
+flattened_shape = shape.flatten(shape)<br>
+TODO
+</div>
+<div class="function">
+new_shape = shape.glue(src_shape, dst_shape[, transform_callback])<br>
+TODO
+</div>
+<div class="function">
+new_shape = shape.move(shape, x, y)<br>
+TODO
+</div>
+<div class="function">
+new_shape = shape.split(shape, max_len)<br>
+TODO
+</div>
+<div class="function">
+outline_shape = shape.to_outline(shape, width_xy[, width_y])<br>
+TODO
+</div>
+<div class="function">
+pixels = shape.to_pixels(shape)<br>
+TODO
+</div>
+<div class="function">
+transformed_shape = shape.transform(shape, matrix)<br>
+TODO
+</div>
+<div class="function">
+ms_ass = ass.convert_time(ass_ms)<br>
+TODO
+</div>
+<div class="function">
+a_r_ass[, rg, rb[, ra]] = ass.convert_coloralpha(ass_r_a[, g, b[, a]])<br>
+TODO
+</div>
+<div class="function">
+coloralpha = ass.interpolate_coloralpha(pct, ...)<br>
+TODO
+</div>
+<div class="function">
+PARSER = ass.create_parser([ass_text])<br>
+TODO
+</div>
+<div class="function">
+accepted = PARSER.parse_line(line)<br>
+TODO
+</div>
+<div class="function">
+meta = PARSER.meta()<br>
+TODO
+</div>
+<div class="function">
+styles = PARSER.styles()<br>
+TODO
+</div>
+<div class="function">
+dialogs = PARSER.dialogs([extended])<br>
+TODO
+</div>
+<div class="function">
+BMP_READER = decode.create_bmp_reader(filename)<br>
+TODO
+</div>
+<div class="function">
+file_size = BMP_READER.file_size()<br>
+TODO
+</div>
+<div class="function">
+width = BMP_READER.width()<br>
+TODO
+</div>
+<div class="function">
+height = BMP_READER.height()<br>
+TODO
+</div>
+<div class="function">
+bit_depth = BMP_READER.bit_depth()<br>
+TODO
+</div>
+<div class="function">
+data_size = BMP_READER.data_size()<br>
+TODO
+</div>
+<div class="function">
+row_size = BMP_READER.row_size()<br>
+TODO
+</div>
+<div class="function">
+is_bottom_up = BMP_READER.bottom_up()<br>
+TODO
+</div>
+<div class="function">
+data_raw = BMP_READER.data_raw()<br>
+TODO
+</div>
+<div class="function">
+data_packed = BMP_READER.data_packed()<br>
+TODO
+</div>
+<div class="function">
+data_ass_text = BMP_READER.data_text()<br>
+TODO
+</div>
+<div class="function">
+WAV_READER = decode.create_wav_reader(filename)<br>
+TODO
+</div>
+<div class="function">
+file_size = WAV_READER.file_size()<br>
+TODO
+</div>
+<div class="function">
+channels = WAV_READER.channels_number()<br>
+TODO
+</div>
+<div class="function">
+sample_rate = WAV_READER.sample_rate()<br>
+TODO
+</div>
+<div class="function">
+byte_rate = WAV_READER.byte_rate()<br>
+TODO
+</div>
+<div class="function">
+block_align = WAV_READER.block_align()<br>
+TODO
+</div>
+<div class="function">
+bits_per_sample = WAV_READER.bits_per_sample()<br>
+TODO
+</div>
+<div class="function">
+samples_number = WAV_READER.samples_per_channel()<br>
+TODO
+</div>
+<div class="function">
+min_amplitude, max_amplitude = WAV_READER.min_max_amplitude()<br>
+TODO
+</div>
+<div class="function">
+sample = WAV_READER.sample_from_ms(ms)<br>
+TODO
+</div>
+<div class="function">
+ms = WAV_READER.ms_from_sample(sample)<br>
+TODO
+</div>
+<div class="function">
+position = WAV_READER.position([pos])<br>
+TODO
+</div>
+<div class="function">
+samples = WAV_READER.samples_interlaced(n)<br>
+TODO
+</div>
+<div class="function">
+samples = WAV_READER.samples(n)<br>
+TODO
+</div>
+<div class="function">
+FREQ_ANALYZER = decode.create_frequency_analyzer(samples, sample_rate)<br>
+TODO
+</div>
+<div class="function">
+frequencies = FREQ_ANALYZER.frequencies()<br>
+TODO
+</div>
+<div class="function">
+weight = FREQ_ANALYZER.frequency_weight(freq)<br>
+TODO
+</div>
+<div class="function">
+weight = FREQ_ANALYZER.frequency_range_weight(freq_min, freq_max)<br>
+TODO
+</div>
+<div class="function">
+FONT_HANDLE = decode.create_font(family, bold, italic, underline, strikeout, size[, xscale][, yscale][, hspace])<br>
+TODO
+</div>
+<div class="function">
+metrics = FONT_HANDLE.metrics()<br>
+TODO
+</div>
+<div class="function">
+extents = FONT_HANDLE.text_extents(text)<br>
+TODO
+</div>
+<div class="function">
+shape = FONT_HANDLE.text_to_shape(text)<br>
+TODO
+</div>
+<div class="function">
+fonts_list = decode.list_fonts([with_filenames])<br>
+TODO
+</div>
 </div>
 </body>
 

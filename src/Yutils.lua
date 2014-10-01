@@ -757,6 +757,8 @@ Yutils = {
 					end
 					-- Replace old matrix
 					matrix = Yutils.table.copy(new_matrix)
+					-- Return this object
+					return obj
 				end,
 				-- Set matrix to identity
 				identity = function()
