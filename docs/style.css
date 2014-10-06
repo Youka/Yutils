@@ -117,22 +117,36 @@ div.section div.function{
 	margin: 6px;
 	border: dotted 1px black;
 	font-size: 14px;
-	background-color: #F4F4F4;
+	background-color: white;
+	display: table;
 }
 div.section div.function span.definition{
 	font-weight: bold;
 	font-size: 18px;
 }
-div.section div.function span.definition span.function_return{
+div.section div.function span.function_return{
 	color: green;
 }
-div.section div.function span.definition span.function_parameters{
+div.section div.function span.function_parameters{
 	color: red;
 }
 
 ul{
 	margin: 0px;
 	padding-left: 18px;
+}
+
+table.grid{
+	border-collapse: collapse;
+}
+table.grid tr td{
+	padding: 0;
+	text-align: center;
+	width: 20px;
+	height: 20px;
+	border: solid 1px grey;
+	background-color: black;
+	color: white;
 }
 
 div.code{

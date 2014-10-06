@@ -53,99 +53,116 @@ print(Ymath.distance(1,1))
 <div class="section" id="Functions">
 <div class="function">
 new_table = table.copy(t[, depth])<br>
-TODO
+Copies elements (recursively) of table <span class="function_parameters">t</span> into returned table <span class="function_return">new_table</span>.<br>
+<span class="function_parameters">depth</span> can limit the number of recursive passes, so value 1 results in a shallow copy.
 </div>
 <div class="function">
 table_description = table.tostring(t)<br>
-TODO
+Converts table <span class="function_parameters">t</span> into readable string <span class="function_return">table_description</span> (mainly useful for debugging).
 </div>
 <div class="function">
 range = utf8.charrange(s, i)<br>
-TODO
+Returns byte range of unicode character in string <span class="function_parameters">s</span> at position <span class="function_parameters">i</span>.
 </div>
 <div class="function">
 chars_iter = utf8.chars(s)<br>
-TODO
+Creates iterator function through unicode characters of string <span class="function_parameters">s</span>.<br>
+Every iteration pass returns character index + string or nil on end.
 </div>
 <div class="function">
 length = utf8.len(s)<br>
-TODO
+Returns unicode characters number of string <span class="function_parameters">s</span>.
 </div>
 <div class="function">
 c0x0, c0y0, c0x1, c0y1, c0x2, c0y2, c0x3, c0y3[, c1x0, c1y0, c1x1, c1y1, c1x2, c1y2, c1x3, c1y3[, c2x0, c2y0, c2x1, c2y1, c2x2, c2y2, c2x3, c2y3[, c3x0, c3y0, c3x1, c3y1, c3x2, c3y2, c3x3, c3y3]]] = math.arc_curve(x, y, cx, cy, angle)<br>
-TODO
+Converts arc data to bezier curves.<br>
+<span class="function_parameters">x</span> & <span class="function_parameters">y</span> is the arc starting point, <span class="function_parameters">cx</span> & <span class="function_parameters">cy</span> the arc center and <span class="function_parameters">angle</span> the angle in degree of the arc.<br>
+For every 90° one curve is generated, so a maximum of 4 curves can span a circle. Curves are 3rd order bezier curves, defined as <span class="function_return">c&ltCURVE_INDEX&gtx|y&ltPOINT_INDEX&gt</span>.
 </div>
 <div class="function">
 x, y, z = math.bezier(pct, pts)<br>
-TODO
+Calculates a point on a bezier curve of any order.<br>
+<span class="function_parameters">pct</span> is the position on the curve in range 0&lt=x&lt=1. <span class="function_parameters">pts</span> is a table of tables, each one containing 2 or 3 numbers as curve point.
 </div>
 <div class="function">
 MATRIX = math.create_matrix()<br>
-TODO
+Creates a 3D matrix object (for usage, see following functions).
 </div>
 <div class="function">
 matrix_fields = MATRIX.get_data()<br>
-TODO
+Returns a table with 16 numbers, presenting all matrix fields.<br>
+<table class="grid" style="float: left;">
+<tr><td>1</td><td>5</td><td>9</td><td>13</td></tr>
+<tr><td>2</td><td>6</td><td>10</td><td>14</td></tr>
+<tr><td>3</td><td>7</td><td>11</td><td>15</td></tr>
+<tr><td>4</td><td>8</td><td>12</td><td>16</td></tr>
+</table>
+<table class="grid" style="float: left; margin-left: 5px; font-size: 10px;">
+<tr><td>x0x1</td><td>y0x1</td><td>z0x1</td><td>w0x1</td></tr>
+<tr><td>x0y1</td><td>y0y1</td><td>z0y1</td><td>w0y1</td></tr>
+<tr><td>x0z1</td><td>y0z1</td><td>z0z1</td><td>w0z1</td></tr>
+<tr><td>x0w1</td><td>y0w1</td><td>z0w1</td><td>w0w1</td></tr>
+</table>
 </div>
 <div class="function">
-matrix = MATRIX.set_data(matrix_fields)<br>
-TODO
+MATRIX = MATRIX.set_data(matrix_fields)<br>
+Sets matrix fields. For more, see <a href="#MATRIX.get_data">MATRIX.get_data</a>.
 </div>
 <div class="function">
-matrix = MATRIX.identity()<br>
-TODO
+MATRIX = MATRIX.identity()<br>
+Resets matrix to identity.
 </div>
 <div class="function">
-matrix = MATRIX.multiply(matrix_fields)<br>
-TODO
+MATRIX = MATRIX.multiply(matrix_fields)<br>
+Multiplies another matrix as table/raw data to this matrix. This way, matrix properties get prepended. For more, see <a href="#MATRIX.get_data">MATRIX.get_data</a>.
 </div>
 <div class="function">
-matrix = MATRIX.translate(x, y, z)<br>
-TODO
+MATRIX = MATRIX.translate(x, y, z)<br>
+Applies a translation to the matrix.
 </div>
 <div class="function">
-matrix = MATRIX.scale(x, y, z)<br>
-TODO
+MATRIX = MATRIX.scale(x, y, z)<br>
+Applies a scale to the matrix.
 </div>
 <div class="function">
-matrix = MATRIX.rotate(axis, angle)<br>
-TODO
+MATRIX = MATRIX.rotate(axis, angle)<br>
+Applies a rotation to the matrix. <span class="function_parameters">axis</span> can be "x", "y" or "z", <span class="function_parameters">angle</span> is in degree.
 </div>
 <div class="function">
-[matrix] = MATRIX.inverse()<br>
-TODO
+[MATRIX] = MATRIX.inverse()<br>
+Inverses the matrix. This might fail, so nil will be returned.
 </div>
 <div class="function">
 rx, ry, rz, rw = MATRIX.transform(x, y, z[, w])<br>
-TODO
+Multiplies a point with the matrix.
 </div>
 <div class="function">
 degree = math.degree(x1, y1, z1, x2, y2, z2)<br>
-TODO
+Calculates the degree between vectors <span class="function_parameters">x1|y1|z1</span> and <span class="function_parameters">x2|y2|z3</span>.
 </div>
 <div class="function">
 length = math.distance(x, y[, z])<br>
-TODO
+Calculates length of given vector.
 </div>
 <div class="function">
 rx, ry, rz = math.ortho(x1, y1, z1, x2, y2, z2)<br>
-TODO
+Calculates the orthogonal vector to vectors <span class="function_parameters">x1|y1|z1</span> and <span class="function_parameters">x2|y2|z3</span>.
 </div>
 <div class="function">
 r = math.randomsteps(min, max, step)<br>
-TODO
+Generates randomly a number in range <span class="function_parameters">min</span> to <span class="function_parameters">max</span> with gap size <span class="function_parameters">step</span> between numbers.
 </div>
 <div class="function">
 r = math.round(x[, dec])<br>
-TODO
+Rounds <span class="function_parameters">x</span> to nearest integer. Optionally, <span class="function_parameters">dec</span> defines the position behind decimal point to round to.
 </div>
 <div class="function">
 rx, ry, rz = math.stretch(x, y, z, length)<br>
-TODO
+Stretches vector <span class="function_parameters">x|y|z</span> to length <span class="function_parameters">length</span>.
 </div>
 <div class="function">
 r = math.trim(x, min, max)<br>
-TODO
+If <span class="function_parameters">x</span> is smaller than <span class="function_parameters">min</span>, returns <span class="function_parameters">min</span>. If <span class="function_parameters">x</span> is greater than <span class="function_parameters">max</span>, returns <span class="function_parameters">max</span>. Otherwise returns <span class="function_parameters">x</span>.
 </div>
 <div class="function">
 frames_iter = algorithm.frames(starts, ends, dur)<br>
@@ -192,7 +209,7 @@ pixels = shape.to_pixels(shape)<br>
 TODO
 </div>
 <div class="function">
-transformed_shape = shape.transform(shape, matrix)<br>
+transformed_shape = shape.transform(shape, MATRIX)<br>
 TODO
 </div>
 <div class="function">
