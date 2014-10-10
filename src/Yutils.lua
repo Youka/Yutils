@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 21th September 2014, 08:10 (GMT+1)
+	Version: 11th October 2014, 08:10 (GMT+1)
 	
 	Yutils
 		table
@@ -499,7 +499,7 @@ local function bton(s)
 	local bytes, n = {s:byte(1,-1)}, 0
 	-- Combine bytes to unsigned integer number
 	for i = 0, #bytes-1 do
-		n = n + bytes[1+i] * 2^(i*8)
+		n = n + bytes[1+i] * 256^i
 	end
 	return n
 end
