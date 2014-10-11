@@ -166,63 +166,86 @@ If <span class="function_parameters">x</span> is smaller than <span class="funct
 </div>
 <div class="function">
 frames_iter = algorithm.frames(starts, ends, dur)<br>
-TODO
+Creates iterator function for frames in range <span class="function_parameters">starts</span> to <span class="function_parameters">ends</span> with step size <span class="function_parameters">dur</span>.<br>
+For each frame, the start, end, index and number of all frames becomes available.
 </div>
 <div class="function">
 lines_iter = algorithm.lines(text)<br>
-TODO
+Creates iterator functions through lines of text <span class="function_parameters">text</span>.<br>
+All 3 sorts of line endings (<i>CR, LF, CRLF</i>) will be considered.
 </div>
 <div class="function">
 x0, y0, x1, y1 = shape.bounding(shape)<br>
-TODO
+Calculates the bounding box of shape <span class="function_parameters">shape</span>.<br>
+<span class="function_parameters">x0|y0</span> is the upper-left and <span class="function_parameters">x1|y1</span> the lower-right corner of the rectangle.
 </div>
 <div class="function">
 shapes = shape.detect(width, height, data[, compare_func])<br>
-TODO
+Traces shapes in 2D data.<br>
+<span class="function_parameters">width</span> and <span class="function_parameters">height</span> defines vector lengths => how to read elements in data table <span class="function_parameters">data</span>.<br>
+<span class="function_parameters">compare_func</span> can be defined as comparison function, useful for non-flat data elements.<br>
+Each entry in returned table <span class="function_return">shapes</span> contains following fields:
+<ul>
+<li><b>value</b>: unique value in <span class="function_parameters">data</span></li>
+<li><b>shapes</b>: table with shapes (as strings), covering <b>value</b> in <span class="function_parameters">data</span></li>
+</ul>
 </div>
 <div class="function">
 new_shape = shape.filter(shape, filter)<br>
-TODO
+Filters points of shape <span class="function_parameters">shape</span> by function <span class="function_parameters">filter</span> and returns a new one.<br>
+<span class="function_parameters">filter</span> receives point coordinates <b>x</b> and <b>y</b> as well as the point type and have to return 2 numbers, replacing <b>x</b> and <b>y</b>.
 </div>
 <div class="function">
 flattened_shape = shape.flatten(shape)<br>
-TODO
+Converts all 3rd order bezier curves in shape <span class="function_parameters">shape</span> to lines, creating a new shape.
 </div>
 <div class="function">
 new_shape = shape.glue(src_shape, dst_shape[, transform_callback])<br>
-TODO
+Projects shape <span class="function_parameters">src_shape</span> with his bottom on the first figure of shape <span class="function_parameters">dst_shape</span>, returned as new shape. <span class="function_parameters">src_shape</span> gets stretched to fit on <span class="function_parameters">dst_shape</span>.<br>
+<span class="function_parameters">transform_callback</span> can be defined as callback function, receiving the position on <span class="function_parameters">dst_shape</span> in range 0&lt=x&lt=1 and the orthogonal offset, having to return the replacement.
 </div>
 <div class="function">
 new_shape = shape.move(shape, x, y)<br>
-TODO
+Shifts points of shape <span class="function_parameters">shape</span> horizontally by <span class="function_parameters">x</span> and vertically by <span class="function_parameters">y</span>, creating a new shape.
 </div>
 <div class="function">
 new_shape = shape.split(shape, max_len)<br>
-TODO
+Splits lines of shape <span class="function_parameters">shape</span> into shorter ones to fix to maximal line length of <span class="function_parameters">max_len</span>, creating a new shape.
 </div>
 <div class="function">
 outline_shape = shape.to_outline(shape, width_xy[, width_y])<br>
-TODO
+Converts shape <span class="function_parameters">shape</span> from his filling to the stroke with horizontal width <span class="function_parameters">width_xy</span> and vertical width <span class="function_parameters">width_y</span>, returned as new shape. If <span class="function_parameters">width_y</span> isn't defined, <span class="function_parameters">width_xy</span> stands for both.
 </div>
 <div class="function">
 pixels = shape.to_pixels(shape)<br>
-TODO
+Renders shape <span class="function_parameters">shape</span> and returns pixels.<br>
+<span class="function_return">pixels</span> is a table of single pixels, each one with following fields:
+<ul>
+<li><b>x</b>: horizontal position</li>
+<li><b>y</b>: vertical position</li>
+<li><b>alpha</b>: opacity in range 0&lt;=x&lt;=255</li>
+</ul>
 </div>
 <div class="function">
 transformed_shape = shape.transform(shape, MATRIX)<br>
-TODO
+Applies a matrix (see <a href="#math.create_matrix">math.create_matrix</a>) on shape points of <span class="function_parameters">shape</span>, creating a new shape.
 </div>
 <div class="function">
 ms_ass = ass.convert_time(ass_ms)<br>
-TODO
+Converts time between numeric and ASS presentation.<br>
+<span class="function_parameters">ass_ms</span> can be a string in ASS format <b>H:MM:SS.XX</b> (H=Hours, M=Minutes, S=Seconds, X=Milliseconds*10) or milliseconds as number.<br>
+<span class="function_return">ms_ass</span> becomes the equivalent of <span class="function_parameters">ass_ms</span>.
 </div>
 <div class="function">
 a_r_ass[, rg, rb[, ra]] = ass.convert_coloralpha(ass_r_a[, g, b[, a]])<br>
-TODO
+Converts color, alpha or color+alpha between numeric and ASS presentation.<br>
+<span class="function_parameters">ass_r_a</span> can be a string as ASS color (<b>&amp;H<font color=blue>FF</font><font color=green>FF</font><font color=red>FF</font>&amp;</b>), alpha (<b>&amp;H<font color=grey>FF</font>&amp;</b>) or both (<b>&amp;H<font color=grey>FF</font><font color=blue>FF</font><font color=green>FF</font><font color=red>FF</font></b>) as well as the color strength of red or alpha in range 0&lt;=x&lt;=255.<br>
+<span class="function_parameters">g</span> is green, <span class="function_parameters">b</span> is blue, <span class="function_parameters">a</span> is alpha, all color strengths in range 0&lt;=x&lt;=255 too.<br>
+<span class="function_return">a_r_ass[, rg, rb[, ra]]</span> becomes the equivalent of <span class="function_parameters">ass_r_a[, g, b[, a]]</span>.
 </div>
 <div class="function">
 coloralpha = ass.interpolate_coloralpha(pct, ...)<br>
-TODO
+Interpolates between multiple ASS color, alpha or color+alpha <span class="function_parameters">...</span> and calculates the value at position <span class="function_parameters">pct</span> with range 0&lt;=x&lt;=1.
 </div>
 <div class="function">
 PARSER = ass.create_parser([ass_text])<br>
@@ -378,7 +401,15 @@ TODO
 </div>
 <div class="function">
 fonts_list = decode.list_fonts([with_filenames])<br>
-TODO
+Returns a list of system installed fonts.<br>
+<span class="function_return">fonts_list</span> is a table, each entry one font. Fonts contain following fields:
+<ul>
+<li><b>name</b>: short fontname</li>
+<li><b>longname</b>: full fontname</li>
+<li><b>style</b>: font style</li>
+<li><b>type</b>: font storage type</li>
+<li><b>file</b>: font file (<span class="function_parameters">with_filenames</span> must be true; successfull extraction isn't ensured)</li>
+</ul>
 </div>
 </div>
 </body>
