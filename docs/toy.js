@@ -18,8 +18,6 @@ function getScrollBarWidth(){
 		// Set box widths
 		outerBox.style.width = "100px";
 		innerBox.style.width = "100%";
-		// Give outer box a scrollbar
-		outerBox.style.overflow = "scroll";
 		// Set outer box invisible (no effect on displayed elements)
 		outerBox.style.visibility = "hidden";
 		outerBox.style.position = "fixed";
@@ -29,7 +27,10 @@ function getScrollBarWidth(){
 		outerBox.appendChild(innerBox);
 		document.body.appendChild(outerBox);
 		// Save scrollbar width
-		getScrollBarWidth.prototype.barWidth = (outerBox.offsetWidth - innerBox.offsetWidth) + "px";
+		outerBox.style.overflow = "scroll";
+		var widthWithScrollBar = innerBox.offsetWidth;
+		outerBox.style.overflow = "hidden";
+		getScrollBarWidth.prototype.barWidth = innerBox.offsetWidth - widthWithScrollBar + "px";
 		// Remove boxes (no further need)
 		document.body.removeChild(outerBox);
 	}
@@ -72,7 +73,8 @@ window.addEventListener("load", function(evt){
 		title.id = "section";
 		section.parentNode.insertBefore(title, section);
 		// Repeat last steps with subsections / functions
-		var functions = section.getElementsByClassName("function");
+		var functions = section.getElementsByClassName("function"),
+			lastLibrary = "";
 		for(var j=0; j < functions.length; ++j){
 			section = functions[j];
 			// Extract function definition
@@ -92,8 +94,23 @@ window.addEventListener("load", function(evt){
 					link.appendChild(document.createTextNode(funcName));
 					link.className = "subcontents";
 					contents.appendChild(link);
-					if(/[A-Z]\./.test(funcName))
-						link.style.paddingLeft = parseInt(link.getStyle().paddingLeft) * 2 + "px";
+					// Add function indention & library header to contents
+					var libSeparator = funcName.indexOf(".");
+					if(libSeparator != -1){
+						var libName = funcName.slice(0, libSeparator);
+						if(libName == libName.toUpperCase())
+							link.style.paddingLeft = parseInt(link.getStyle().paddingLeft) * 3 + "px";
+						else{
+							if(lastLibrary != libName){
+								var libLink = link.cloneNode(true);
+								libLink.replaceChild(document.createTextNode(libName), libLink.firstChild);
+								contents.insertBefore(libLink, link);
+								lastLibrary = libName;
+							}
+							link.style.paddingLeft = parseInt(link.getStyle().paddingLeft) * 2 + "px";
+						}
+					}else
+						lastLibrary = "";
 					// Add anchor to section
 					anchor = document.createElement("a");
 					anchor.name = funcName;
