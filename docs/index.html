@@ -15,7 +15,7 @@
 <meta name="robots" content="index,nofollow">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" type="text/css" href="style.css" media="screen">
-<script type="text/javascript" src="toy.js"></script>
+<script type="text/javascript" src="content_format.js"></script>
 </head>
 
 <body>
@@ -76,8 +76,8 @@ Returns unicode characters number of string <span class="function_parameters">s<
 <div class="function">
 c0x0, c0y0, c0x1, c0y1, c0x2, c0y2, c0x3, c0y3[, c1x0, c1y0, c1x1, c1y1, c1x2, c1y2, c1x3, c1y3[, c2x0, c2y0, c2x1, c2y1, c2x2, c2y2, c2x3, c2y3[, c3x0, c3y0, c3x1, c3y1, c3x2, c3y2, c3x3, c3y3]]] = math.arc_curve(x, y, cx, cy, angle)<br>
 Converts arc data to bezier curves.<br>
-<span class="function_parameters">x</span> & <span class="function_parameters">y</span> is the arc starting point, <span class="function_parameters">cx</span> & <span class="function_parameters">cy</span> the arc center and <span class="function_parameters">angle</span> the angle in degree of the arc.<br>
-For every 90° one curve is generated, so a maximum of 4 curves can span a circle. Curves are 3rd order bezier curves, defined as <span class="function_return">c&ltCURVE_INDEX&gtx|y&ltPOINT_INDEX&gt</span>.
+<span class="function_parameters">x</span> & <span class="function_parameters">y</span> is the arc starting point, <span class="function_parameters">cx</span> & <span class="function_parameters">cy</span> the arc center (= orientation point to keep the same distance to all arc points) and <span class="function_parameters">angle</span> the angle in degree of the arc.<br>
+For each 90° one curve is generated, so a maximum of 4 curves can span a circle. Curves are 3rd order bezier curves, defined as <span class="function_return">c&ltCURVE_INDEX&gtx|y&ltPOINT_INDEX&gt</span>.
 </div>
 <div class="function">
 x, y, z = math.bezier(pct, pts)<br>
@@ -130,11 +130,11 @@ Applies a rotation to the matrix. <span class="function_parameters">axis</span> 
 </div>
 <div class="function">
 [MATRIX] = MATRIX.inverse()<br>
-Inverses the matrix. This might fail, so nil will be returned.
+Inverses the matrix. This might fail, so nothing will be returned.
 </div>
 <div class="function">
 rx, ry, rz, rw = MATRIX.transform(x, y, z[, w])<br>
-Multiplies a point with the matrix.
+Multiplies a point with the matrix, returning a new one with all properties of the matrix added.
 </div>
 <div class="function">
 degree = math.degree(x1, y1, z1, x2, y2, z2)<br>
@@ -239,8 +239,7 @@ Converts time between numeric and ASS presentation.<br>
 <div class="function">
 a_r_ass[, rg, rb[, ra]] = ass.convert_coloralpha(ass_r_a[, g, b[, a]])<br>
 Converts color, alpha or color+alpha between numeric and ASS presentation.<br>
-<span class="function_parameters">ass_r_a</span> can be a string as ASS color (<b>&amp;H<font color=blue>FF</font><font color=green>FF</font><font color=red>FF</font>&amp;</b>), alpha (<b>&amp;H<font color=grey>FF</font>&amp;</b>) or both (<b>&amp;H<font color=grey>FF</font><font color=blue>FF</font><font color=green>FF</font><font color=red>FF</font></b>) as well as the color strength of red or alpha in range 0&lt;=x&lt;=255.<br>
-<span class="function_parameters">g</span> is green, <span class="function_parameters">b</span> is blue, <span class="function_parameters">a</span> is alpha, all color strengths in range 0&lt;=x&lt;=255 too.<br>
+<span class="function_parameters">ass_r_a</span> can be a string as ASS color (<b>&amp;H<font color=blue>FF</font><font color=green>FF</font><font color=red>FF</font>&amp;</b>), alpha (<b>&amp;H<font color=grey>FF</font>&amp;</b>) or both (<b>&amp;H<font color=grey>FF</font><font color=blue>FF</font><font color=green>FF</font><font color=red>FF</font></b>) as well as the color strength of red or alpha in range 0&lt;=x&lt;=255. <span class="function_parameters">g</span> is green, <span class="function_parameters">b</span> is blue, <span class="function_parameters">a</span> is alpha, all color strengths in same range.<br>
 <span class="function_return">a_r_ass[, rg, rb[, ra]]</span> becomes the equivalent of <span class="function_parameters">ass_r_a[, g, b[, a]]</span>.
 </div>
 <div class="function">
@@ -249,155 +248,328 @@ Interpolates between multiple ASS color, alpha or color+alpha <span class="funct
 </div>
 <div class="function">
 PARSER = ass.create_parser([ass_text])<br>
-TODO
+Creates an ASS parser object (for usage, see following functions). <span class="function_parameters">ass_text</span> can be an ASS script/text to be parsed.
 </div>
 <div class="function">
 accepted = PARSER.parse_line(line)<br>
-TODO
+Parses text line <span class="function_parameters">line</span> to add ASS data to the parser object.<br>
+If the line was valid and data added, <span class="function_return">accepted</span> is true, otherwise false.
 </div>
 <div class="function">
 meta = PARSER.meta()<br>
-TODO
+Returns ASS meta data as table with following fields:
+<ul>
+<li><b>wrap_style</b>: text line wrapping mode as number</li>
+<li><b>scaled_border_and_shadow</b>: borders and shadows should be implicated in script-to-frame scale?</li>
+<li><b>play_res_x</b>: script horizontal resolution</li>
+<li><b>play_res_y</b>: script vertical resolution</li>
+</ul>
 </div>
 <div class="function">
 styles = PARSER.styles()<br>
-TODO
+Returns ASS styles as table. Table keys are style names, values are tables with following fields:
+<ul>
+<li><b>fontname</b>: font face name</li>
+<li><b>fontsize</b>: font size</li>
+<li><b>bold</b>: bold weight?</li>
+<li><b>italic</b>: italic style?</li>
+<li><b>underline</b>: underline decoration?</li>
+<li><b>strikeout</b>: strikeout decoration?</li>
+<li><b>scale_x</b>: horizontal scale in percent</li>
+<li><b>scale_y</b>: vertical scale in percent</li>
+<li><b>spacing</b>: intercharacter spacing</li>
+<li><b>angle</b>: z-axis rotation angle</li>
+<li><b>border_style</b>: border is an outline box?</li>
+<li><b>outline</b>: outline width</li>
+<li><b>shadow</b>: shadow distance right-down</li>
+<li><b>alignment</b>: object alignment on screen (see keypad)</li>
+<li><b>margin_l</b>: margin from left screen border</li>
+<li><b>margin_r</b>: margin from right screen border</li>
+<li><b>margin_v</b>: margin from vertical screen borders</li>
+<li><b>encoding</b>: codepage to interpret text</li>
+</ul>
 </div>
 <div class="function">
 dialogs = PARSER.dialogs([extended])<br>
-TODO
+Returns ASS dialogs as table. Each entry is a table with following fields:
+<ul>
+<li><b>comment</b>: dialog is comment?</li>
+<li><b>layer</b>: dialog layer number</li>
+<li><b>start_time</b>: dialog start time in milliseconds</li>
+<li><b>end_time</b>: dialog end time in milliseconds</li>
+<li><b>style</b>: dialog style name</li>
+<li><b>actor</b>: dialog actor name</li>
+<li><b>margin_l</b>: dialog margin to left edge</li>
+<li><b>margin_r</b>: dialog margin to right</li>
+<li><b>margin_v</b>: dialog margin to horizontal edges</li>
+<li><b>effect</b>: dialog effect description</li>
+<li><b>text</b>: dialog text</li>
+</ul>
+If <span class="function_parameters">extended</span> is true, following additional fields are added:
+<ul>
+<li><b>i</b>: dialog index</li>
+<li><b>duration</b>: dialog duration in milliseconds</li>
+<li><b>mid_time</b>: dialog mid time in milliseconds</li>
+<li><b>styleref</b>: reference to dialog related style table</li>
+<li><b>text_stripped</b>: dialog text without tags</li>
+<li><b>width</b>: dialog width</li>
+<li><b>height</b>: dialog height</li>
+<li><b>ascent</b>: dialog font ascent</li>
+<li><b>descent</b>: dialog font descent</li>
+<li><b>internal_leading</b>: dialog font internal leading</li>
+<li><b>external_leading</b>: dialog font external leading</li>
+<li><b>left</b>: dialog left position</li>
+<li><b>center</b>: dialog center position</li>
+<li><b>right</b>: dialog right position</li>
+<li><b>x</b>: dialog horizontal position by alignment</li>
+<li><b>top</b>: dialog top position</li>
+<li><b>middle</b>: dialog middle position</li>
+<li><b>bottom</b>: dialog bottom positon</li>
+<li><b>y</b>: dialog vertical position by alignment</li>
+<li><b>text_chunked</b>: raw text in tag+text chunks with followings fields:<ul>
+<li><b>tags</b>: content between brackets <b>{}</b> in front of text</li>
+<li><b>text</b>: text after brackets<b>{}</b></li>
+</ul></li>
+<li><b>syls</b>: raw text in sylable chunks with following fields:<ul>
+<li><b>i</b>: sylable index</li>
+<li><b>start_time</b>: sylable start time in milliseconds</li>
+<li><b>mid_time</b>: sylable mid time in milliseconds</li>
+<li><b>end_time</b>: sylable end time in milliseconds</li>
+<li><b>duration</b>: sylable duration in milliseconds</li>
+<li><b>tags</b>: sylable tags beside her duration definition</li>
+<li><b>text</b>: sylable text</li>
+<li><b>prespace</b>: sylable spaces number in front</li>
+<li><b>postspace</b>: sylable spaces number behind</li>
+<li><b>width</b>: sylable width</li>
+<li><b>height</b>: sylable height</li>
+<li><b>ascent</b>: sylable font ascent</li>
+<li><b>descent</b>: sylable font descent</li>
+<li><b>internal_leading</b>: sylable font internal leading</li>
+<li><b>external_leading</b>: sylable font external leading</li>
+<li><b>left</b>: sylable left position</li>
+<li><b>center</b>: sylable center position</li>
+<li><b>right</b>: sylable right position</li>
+<li><b>x</b>: sylable horizontal position by alignment</li>
+<li><b>top</b>: sylable top position</li>
+<li><b>middle</b>: sylable middle position</li>
+<li><b>bottom</b>: sylable bottom position</li>
+<li><b>y</b>: sylable vertical position by alignment</li>
+</ul></li>
+<li><b>words</b>: raw text in word chunks with following fields:<ul>
+<li><b>i</b>: word index</li>
+<li><b>start_time</b>: word start time in milliseconds</li>
+<li><b>mid_time</b>: word mid time in milliseconds</li>
+<li><b>end_time</b>: word end time in milliseconds</li>
+<li><b>duration</b>: word duration in milliseconds</li>
+<li><b>text</b>: word text</li>
+<li><b>prespace</b>: word spaces number in front</li>
+<li><b>postspace</b>: word spaces number behind</li>
+<li><b>width</b>: word width</li>
+<li><b>height</b>: word height</li>
+<li><b>ascent</b>: word font ascent</li>
+<li><b>descent</b>: word font descent</li>
+<li><b>internal_leading</b>: word font internal leading</li>
+<li><b>external_leading</b>: word font external leading</li>
+<li><b>left</b>: word left position</li>
+<li><b>center</b>: word center position</li>
+<li><b>right</b>: word right position</li>
+<li><b>x</b>: word horizontal position by alignment</li>
+<li><b>top</b>: word top position</li>
+<li><b>middle</b>: word middle position</li>
+<li><b>bottom</b>: word bottom position</li>
+<li><b>y</b>: word vertical position by alignment</li>
+</ul></li>
+<li><b>chars</b>: raw text in character chunks with followings fields:<ul>
+<li><b>i</b>: character index</li>
+<li><b>start_time</b>: character start time in milliseconds</li>
+<li><b>mid_time</b>: character mid time in milliseconds</li>
+<li><b>end_time</b>: character end time in milliseconds</li>
+<li><b>duration</b>: character duration in milliseconds</li>
+<li><b>text</b>: character text</li>
+<li><b>syl_i</b>: index of sylable which contains the character</li>
+<li><b>word_i</b>: index of word which contains the character</li>
+<li><b>width</b>: character width</li>
+<li><b>height</b>: character height</li>
+<li><b>ascent</b>: character font ascent</li>
+<li><b>descent</b>: character font descent</li>
+<li><b>internal_leading</b>: character font internal leading</li>
+<li><b>external_leading</b>: character font external leading</li>
+<li><b>left</b>: character left position</li>
+<li><b>center</b>: character center position</li>
+<li><b>right</b>: character right position</li>
+<li><b>x</b>: character horizontal position by alignment</li>
+<li><b>top</b>: character top position</li>
+<li><b>middle</b>: character middle position</li>
+<li><b>bottom</b>: character bottom position</li>
+<li><b>y</b>: character vertical position by alignment</li>
+</ul></li>
+<li><b>leadin</b>: dialog pretime / duration from last dialog to this one (in case there's none, it's <b>1000.1</b>)</li>
+<li><b>leadout</b>: dialog posttime / duration from this dialog to next one (in case there's none, it's <b>1000.1</b>)</li>
+</ul>
+Some additional informations to calculated values:<br>
+<img src="text_extents.png" /><img src="text_align.jpg" /><img src="text_sections.jpg" /><br>
 </div>
 <div class="function">
 BMP_READER = decode.create_bmp_reader(filename)<br>
-TODO
+Creates a bitmap reader object (for usage, see following functions). Decodes Windows Bitmap (or PNG) file <span class="function_parameters">filename</span>.
 </div>
 <div class="function">
 file_size = BMP_READER.file_size()<br>
-TODO
+Returns bitmap file size in bytes.
 </div>
 <div class="function">
 width = BMP_READER.width()<br>
-TODO
+Returns bitmap width.
 </div>
 <div class="function">
 height = BMP_READER.height()<br>
-TODO
+Returns bitmap height.
 </div>
 <div class="function">
 bit_depth = BMP_READER.bit_depth()<br>
-TODO
+Returns bitmap bit depth.
 </div>
 <div class="function">
 data_size = BMP_READER.data_size()<br>
-TODO
+Returns bitmap image data size in bytes.
 </div>
 <div class="function">
 row_size = BMP_READER.row_size()<br>
-TODO
+Returns bitmap image data row size in bytes.
 </div>
 <div class="function">
 is_bottom_up = BMP_READER.bottom_up()<br>
-TODO
+Returns whether bitmap rows are to read bottom-up (instead top-down).
 </div>
 <div class="function">
 data_raw = BMP_READER.data_raw()<br>
-TODO
+Returns bitmap image data bytes as string.
 </div>
 <div class="function">
 data_packed = BMP_READER.data_packed()<br>
-TODO
+Returns bitmap image data packed in a table. Each entry is a pixel table with following fields:
+<ul>
+<li><b>r</b>: red channel strength in range 0&lt;=x&lt;=255</li>
+<li><b>g</b>: green channel strength in range 0&lt;=x&lt;=255</li>
+<li><b>b</b>: blue channel strength in range 0&lt;=x&lt;=255</li>
+<li><b>a</b>: alpha channel strength in range 0&lt;=x&lt;=255</li>
+</ul>
 </div>
 <div class="function">
 data_ass_text = BMP_READER.data_text()<br>
-TODO
+Returns bitmap image data as ASS text. This text is optimized for small length.
 </div>
 <div class="function">
 WAV_READER = decode.create_wav_reader(filename)<br>
-TODO
+Creates an audio wave reader object (for usage, see following functions). Decodes wave file <span class="function_parameters">filename</span>.
 </div>
 <div class="function">
 file_size = WAV_READER.file_size()<br>
-TODO
+Returns wave file size in bytes.
 </div>
 <div class="function">
 channels = WAV_READER.channels_number()<br>
-TODO
+Returns number of audio channels.
 </div>
 <div class="function">
 sample_rate = WAV_READER.sample_rate()<br>
-TODO
+Returns audio sample rate / samples per second per channel.
 </div>
 <div class="function">
 byte_rate = WAV_READER.byte_rate()<br>
-TODO
+Returns wave byte rate / bytes per second.
 </div>
 <div class="function">
 block_align = WAV_READER.block_align()<br>
-TODO
+Returns wave data block size in bytes (byte depth * number of channels).
 </div>
 <div class="function">
 bits_per_sample = WAV_READER.bits_per_sample()<br>
-TODO
+Returns audio sample bit depth / byte size (/8) of one sample.
 </div>
 <div class="function">
 samples_number = WAV_READER.samples_per_channel()<br>
-TODO
+Returns audio samples number per channel.
 </div>
 <div class="function">
 min_amplitude, max_amplitude = WAV_READER.min_max_amplitude()<br>
-TODO
+Returns minimal and miximal possible value of audio samples.
 </div>
 <div class="function">
 sample = WAV_READER.sample_from_ms(ms)<br>
-TODO
+Returns sample index at time <span class="function_parameters">ms</span> in milliseconds.
 </div>
 <div class="function">
 ms = WAV_READER.ms_from_sample(sample)<br>
-TODO
+Returns time in milliseconds at sample index <span class="function_parameters">sample</span>.
 </div>
 <div class="function">
 position = WAV_READER.position([pos])<br>
-TODO
+Sets and returns current position (= sample index) of samples stream.
 </div>
 <div class="function">
 samples = WAV_READER.samples_interlaced(n)<br>
-TODO
+Reads <span class="function_parameters">n</span> samples from wave data stream and returns them as entries of table <span class="function_return">samples</span>.<br>
+Samples get read raw, so still interlaced.
 </div>
 <div class="function">
 samples = WAV_READER.samples(n)<br>
-TODO
+Like <a href="#WAV_READER.samples_interlaced">WAV_READER.samples_interlaced</a>, but packs samples in subtables for every channel.
 </div>
 <div class="function">
 FREQ_ANALYZER = decode.create_frequency_analyzer(samples, sample_rate)<br>
-TODO
+Creates a frequency analyzer object (for usage, see following functions). Analyzes frequencies of audio samples <span class="function_parameters">samples</span> with sample rate <span class="function_parameters">sample_rate</span> with <a href="http://en.wikipedia.org/wiki/Fast_Fourier_transform">FFT</a>.
 </div>
 <div class="function">
 frequencies = FREQ_ANALYZER.frequencies()<br>
-TODO
+Returns frequencies in range 0&lt;=x&lt;=<span class="function_parameters">sample_rate</span>/2 as table. Each entry has following fields:
+<ul>
+<li><b>freq</b>: frequency value</li>
+<li><b>weight</b>: weight of this frequency in sum of all</li>
+</ul>
 </div>
 <div class="function">
 weight = FREQ_ANALYZER.frequency_weight(freq)<br>
-TODO
+Returns weight of frequency <span class="function_parameters">freq</span> in sum of all. If this frequency isn't available, interpolates the value from the neighbours.
 </div>
 <div class="function">
 weight = FREQ_ANALYZER.frequency_range_weight(freq_min, freq_max)<br>
-TODO
+Calculates weight of frequencies in range <span class="function_parameters">freq_min</span> to <span class="function_parameters">freq_max</span>.
 </div>
 <div class="function">
 FONT_HANDLE = decode.create_font(family, bold, italic, underline, strikeout, size[, xscale][, yscale][, hspace])<br>
-TODO
+Creates a font object (for usage, see following functions).<br>
+<span class="function_parameters">family</span> is the font family.<br>
+If <span class="function_parameters">bold</span> is true, font has bold weight.<br>
+If <span class="function_parameters">italic</span> is true, font has italic style.<br>
+If <span class="function_parameters">underline</span> is true, font has underline decoration.<br>
+If <span class="function_parameters">strikeout</span> is true, font has strikeout decoration.<br>
+<span class="function_parameters">size</span> is the font size.<br>
+<span class="function_parameters">xscale</span> and <span class="function_parameters">yscale</span> can define horizontal & vertical scale.<br>
+<span class="function_parameters">hspace</span> can define intercharacter space.
 </div>
 <div class="function">
 metrics = FONT_HANDLE.metrics()<br>
-TODO
+Returns font metrics as table with followings fields:
+<ul>
+<li><b>ascent</b>: font ascent</li>
+<li><b>descent</b>: font descent</li>
+<li><b>internal_leading</b>: font internal leading</li>
+<li><b>external_leading</b>: font external leading</li>
+<li><b>height</b>: font maximal height</li>
+</ul>
 </div>
 <div class="function">
 extents = FONT_HANDLE.text_extents(text)<br>
-TODO
+Returns extents of text with given font as table with followings fields:
+<ul>
+<li><b>width</b>: text width</li>
+<li><b>height</b>: text height</li>
+</ul>
 </div>
 <div class="function">
 shape = FONT_HANDLE.text_to_shape(text)<br>
-TODO
+Converts text with given font to an ASS shape.
 </div>
 <div class="function">
 fonts_list = decode.list_fonts([with_filenames])<br>
@@ -411,6 +583,9 @@ Returns a list of system installed fonts.<br>
 <li><b>file</b>: font file (<span class="function_parameters">with_filenames</span> must be true; successfull extraction isn't ensured)</li>
 </ul>
 </div>
+</div>
+<div class="section" id="Examples">
+Example scripts how Yutils functions can be used you'll find in folder <a href="./../tests/">tests</a>.
 </div>
 </body>
 

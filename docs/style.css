@@ -62,9 +62,11 @@ div.contents{
 	overflow: auto;
 	width: 0;
 	max-height: 90%;
+	opacity: 0.5;
 }
 div.contents:hover{
 	width: auto;
+	opacity: 1;
 }
 
 div.contents a.contents, div.contents a.subcontents{
@@ -77,7 +79,7 @@ div.contents a.contents:hover, div.contents a.subcontents:hover{
 	text-shadow: 0px 0px 2px black;
 }
 div.contents a.subcontents{
-	padding-left: 14px;
+	padding-left: 18px;
 }
 
 div.section{
@@ -115,7 +117,8 @@ span#section{
 
 div.section div.function{
 	margin: 6px;
-	border: dotted 1px black;
+	padding: 5px;
+	border: dotted 3px grey;
 	font-size: 14px;
 	background-color: white;
 	display: table;
