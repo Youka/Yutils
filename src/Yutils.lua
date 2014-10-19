@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 11th October 2014, 08:10 (GMT+1)
+	Version: 18th October 2014, 14:40 (GMT+1)
 	
 	Yutils
 		table
@@ -498,7 +498,7 @@ local function bton(s)
 	-- Get numeric presentation (=byte) of string characters
 	local bytes, n = {s:byte(1,-1)}, 0
 	-- Combine bytes to unsigned integer number
-	for i = 0, #bytes-1 do
+	for i = 0, #s-1 do
 		n = n + bytes[1+i] * 256^i
 	end
 	return n
@@ -536,24 +536,21 @@ Yutils = {
 				error("table and optional depth expected", 2)
 			end
 			-- Copy & return
-			local function copy_recursive(old_t, depth)
+			local function copy_recursive(old_t)
 				local new_t = {}
 				for key, value in pairs(old_t) do
-					new_t[key] = type(value) == "table" and
-										(
-											depth and
-											(
-												depth >= 2 and
-												copy_recursive(value, depth-1) or
-												value
-											) or
-											copy_recursive(value)
-										) or
-										value
+					new_t[key] = type(value) == "table" and copy_recursive(value) or value
 				end
 				return new_t
 			end
-			return copy_recursive(t, depth)
+			local function copy_recursive_n(old_t, depth)
+				local new_t = {}
+				for key, value in pairs(old_t) do
+					new_t[key] = type(value) == "table" and depth >= 2 and copy_recursive_n(value, depth-1) or value
+				end
+				return new_t
+			end
+			return depth and copy_recursive_n(t, depth) or copy_recursive(t)
 		end,
 		-- Converts table to string
 		tostring = function(t)
@@ -573,7 +570,7 @@ Yutils = {
 						value = string.format("%q", value)
 					end
 					result_n = result_n + 1
-					result[result_n] = string.format("%s[%s] = %s", space, tostring(key), tostring(value))
+					result[result_n] = string.format("%s[%s] = %s", space, key, value)
 					if type(value) == "table" then
 						convert_recursive(value, space .. "\t")
 					end
@@ -587,7 +584,7 @@ Yutils = {
 	-- UTF8 sublibrary
 	utf8 = {
 --[[
-		UTF16 -> UTF8
+		UTF32 -> UTF8
 		--------------
 		U-00000000 - U-0000007F:		0xxxxxxx
 		U-00000080 - U-000007FF:		110xxxxx 10xxxxxx
@@ -622,10 +619,12 @@ Yutils = {
 			local char_i, s_pos, s_len = 0, 1, #s
 			return function()
 				if s_pos <= s_len then
-					char_i = char_i + 1
 					local cur_pos = s_pos
 					s_pos = s_pos + Yutils.utf8.charrange(s, s_pos)
-					return char_i, s:sub(cur_pos, s_pos-1)
+					if s_pos-1 <= s_len then
+						char_i = char_i + 1
+						return char_i, s:sub(cur_pos, s_pos-1)
+					end
 				end
 			end
 		end,
@@ -694,41 +693,55 @@ Yutils = {
 		-- Get point on n-degree bezier curve
 		bezier = function(pct, pts)
 			-- Check arguments
-			if type(pct) ~= "number" or type(pts) ~= "table" or pct < 0 or pct > 1 then
+			if type(pct) ~= "number" or pct < 0 or pct > 1 or type(pts) ~= "table" then
 				error("percent number and points table expected", 2)
+			end
+			local pts_n = #pts
+			if pts_n < 2 then
+				error("at least 2 points expected", 2)
 			end
 			for _, value in ipairs(pts) do
 				if type(value[1]) ~= "number" or type(value[2]) ~= "number" or (value[3] ~= nil and type(value[3]) ~= "number") then
 					error("points have to be tables with 2 or 3 numbers", 2)
 				end
 			end
-			--Factorial
-			local function fac(n)
-				local k = 1
-				for i=2, n do
-					k = k * i
+			-- Pick a fitting fast calculation
+			local pct_inv = 1 - pct
+			if pts_n == 2 then	-- Linear curve
+				return pct_inv * pts[1][1] + pct * pts[2][1],
+						pct_inv * pts[1][2] + pct * pts[2][2],
+						pts[1][3] and pts[2][3] and pct_inv * pts[1][3] + pct * pts[2][3] or 0
+			elseif pts_n == 3 then	-- Quadratic curve
+				return pct_inv * pct_inv * pts[1][1] + 2 * pct_inv * pct * pts[2][1] + pct * pct * pts[3][1],
+						pct_inv * pct_inv * pts[1][2] + 2 * pct_inv * pct * pts[2][2] + pct * pct * pts[3][2],
+						pts[1][3] and pts[2][3] and pct_inv * pct_inv * pts[1][3] + 2 * pct_inv * pct * pts[2][3] + pct * pct * pts[3][3] or 0
+			elseif pts_n == 4 then	-- Cubic curve
+				return pct_inv * pct_inv * pct_inv * pts[1][1] + 3 * pct_inv * pct_inv * pct * pts[2][1] + 3 * pct_inv * pct * pct * pts[3][1] + pct * pct * pct * pts[4][1],
+						pct_inv * pct_inv * pct_inv * pts[1][2] + 3 * pct_inv * pct_inv * pct * pts[2][2] + 3 * pct_inv * pct * pct * pts[3][2] + pct * pct * pct * pts[4][2],
+						pts[1][3] and pts[2][3] and pts[3][3] and pts[4][3] and pct_inv * pct_inv * pct_inv * pts[1][3] + 3 * pct_inv * pct_inv * pct * pts[2][3] + 3 * pct_inv * pct * pct * pts[3][3] + pct * pct * pct * pts[4][3] or 0
+			else	-- pts_n > 4
+				-- Factorial
+				local function fac(n)
+					local k = 1
+					for i=2, n do
+						k = k * i
+					end
+					return k
 				end
-				return k
+				-- Calculate coordinate
+				local ret_x, ret_y, ret_z = 0, 0, 0
+				local n, bern, pt = pts_n - 1
+				for i=0, n do
+					pt = pts[1+i]
+					-- Bernstein polynom
+					bern = fac(n) / (fac(i) * fac(n - i)) *	--Binomial coefficient
+							pct^i * pct_inv^(n - i)
+					ret_x = ret_x + pt[1] * bern
+					ret_y = ret_y + pt[2] * bern
+					ret_z = ret_z + (pt[3] or 0) * bern
+				end
+				return ret_x, ret_y, ret_z
 			end
-			--Binomial coefficient
-			local function bin(i, n)
-				return fac(n) / (fac(i) * fac(n-i))
-			end
-			--Bernstein polynom
-			local function bernstein(pct, i, n)
-				return bin(i, n) * pct^i * (1 - pct)^(n - i)
-			end
-			--Calculate coordinate
-			local ret_x, ret_y, ret_z = 0, 0, 0
-			local n, bern, pt = #pts - 1
-			for i=0, n do
-				bern = bernstein(pct, i, n)
-				pt = pts[i+1]
-				ret_x = ret_x + pt[1] * bern
-				ret_y = ret_y + pt[2] * bern
-				ret_z = ret_z + (pt[3] or 0) * bern
-			end
-			return ret_x, ret_y, ret_z
 		end,
 		-- Creates 3d matrix
 		create_matrix = function()
