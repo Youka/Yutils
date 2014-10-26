@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 18th October 2014, 14:40 (GMT+1)
+	Version: 26th October 2014, 19:10 (GMT+1)
 	
 	Yutils
 		table
@@ -2090,7 +2090,7 @@ Yutils = {
 								if meta.play_res_x > 0 and meta.play_res_y > 0 then
 									-- Horizontal position
 									if (dialog.styleref.alignment-1) % 3 == 0 then
-										dialog.left = math.max(dialog.margin_l, dialog.styleref.margin_l)
+										dialog.left = dialog.margin_l ~= 0 and dialog.margin_l or dialog.styleref.margin_l
 										dialog.center = dialog.left + dialog.width / 2
 										dialog.right = dialog.left + dialog.width
 										dialog.x = dialog.left
@@ -2100,14 +2100,14 @@ Yutils = {
 										dialog.right = dialog.left + dialog.width
 										dialog.x = dialog.center
 									else
-										dialog.left = meta.play_res_x - math.max(dialog.margin_r, dialog.styleref.margin_r) - dialog.width
+										dialog.left = meta.play_res_x - (dialog.margin_r ~= 0 and dialog.margin_r or dialog.styleref.margin_r) - dialog.width
 										dialog.center = dialog.left + dialog.width / 2
 										dialog.right = dialog.left + dialog.width
 										dialog.x = dialog.right
 									end
 									-- Vertical position
 									if dialog.styleref.alignment > 6 then
-										dialog.top = math.max(dialog.margin_v, dialog.styleref.margin_v)
+										dialog.top = dialog.margin_v ~= 0 and dialog.margin_v or dialog.styleref.margin_v
 										dialog.middle = dialog.top + dialog.height / 2
 										dialog.bottom = dialog.top + dialog.height
 										dialog.y = dialog.top
@@ -2117,7 +2117,7 @@ Yutils = {
 										dialog.bottom = dialog.top + dialog.height
 										dialog.y = dialog.middle
 									else
-										dialog.top = meta.play_res_y - math.max(dialog.margin_v, dialog.styleref.margin_v) - dialog.height
+										dialog.top = meta.play_res_y - (dialog.margin_v ~= 0 and dialog.margin_v or dialog.styleref.margin_v) - dialog.height
 										dialog.middle = dialog.top + dialog.height / 2
 										dialog.bottom = dialog.top + dialog.height
 										dialog.y = dialog.bottom
