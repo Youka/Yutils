@@ -213,8 +213,8 @@ new_shape = shape.split(shape, max_len)<br>
 Splits lines of shape <span class="function_parameters">shape</span> into shorter ones to fix to maximal line length of <span class="function_parameters">max_len</span>, creating a new shape.
 </div>
 <div class="function">
-outline_shape = shape.to_outline(shape, width_xy[, width_y])<br>
-Converts shape <span class="function_parameters">shape</span> from his filling to the stroke with horizontal width <span class="function_parameters">width_xy</span> and vertical width <span class="function_parameters">width_y</span>, returned as new shape. If <span class="function_parameters">width_y</span> isn't defined, <span class="function_parameters">width_xy</span> stands for both.
+outline_shape = shape.to_outline(shape, width_xy[, width_y][, mode])<br>
+Converts shape <span class="function_parameters">shape</span> from his filling to the stroke with horizontal width <span class="function_parameters">width_xy</span>, vertical width <span class="function_parameters">width_y</span> and join type <span class="function_parameters">mode</span> which can be "round"|"bevel"|"miter", returned as new shape. If <span class="function_parameters">width_y</span> isn't defined, <span class="function_parameters">width_xy</span> stands for both. Default join type is "round".
 </div>
 <div class="function">
 pixels = shape.to_pixels(shape)<br>

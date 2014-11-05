@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 26th October 2014, 19:10 (GMT+1)
+	Version: 4th November 2014, 04:00 (GMT+1)
 	
 	Yutils
 		table
@@ -60,7 +60,7 @@
 			glue(src_shape, dst_shape[, transform_callback]) -> string
 			move(shape, x, y) -> string
 			split(shape, max_len) -> string
-			to_outline(shape, width_xy[, width_y]) -> string
+			to_outline(shape, width_xy[, width_y][, mode]) -> string
 			to_pixels(shape) -> table
 			transform(shape, matrix) -> string
 		ass
@@ -113,6 +113,7 @@
 local FP_PRECISION = 3	-- Floating point precision by numbers behind point (for shape points)
 local CURVE_TOLERANCE = 1	-- Angle in degree to define a curve as flat
 local MAX_CIRCUMFERENCE = 1.5	-- Circumference step size to create round edges out of lines
+local MITER_LIMIT = 200	-- Maximal length of a miter join
 local SUPERSAMPLING = 8	-- Anti-aliasing precision for shape to pixels conversion
 local FONT_PRECISION = 64	-- Font scale for better precision output from native font system
 local LIBASS_FONTHACK = true	-- Scale font data to fontsize? (no effect on windows)
@@ -1591,12 +1592,14 @@ Yutils = {
 			return table.concat(new_shape, " ")
 		end,
 		-- Converts shape to stroke version
-		to_outline = function(shape, width_xy, width_y)
+		to_outline = function(shape, width_xy, width_y, mode)
 			-- Check arguments
-			if type(shape) ~= "string" or type(width_xy) ~= "number" or width_xy < 0 or not (width_y == nil or type(width_y) == "number" and width_y >= 0) then
-				error("shape and line width (general or horizontal and vertical) expected", 2)
-			elseif width_y and not (width_xy > 0 or width_y > 0) or width_xy == 0 then
+			if type(shape) ~= "string" or type(width_xy) ~= "number" or width_y ~= nil and type(width_y) ~= "number" or mode ~= nil and type(mode) ~= "string" then
+				error("shape, line width (general or horizontal and vertical) and optional mode expected", 2)
+			elseif width_y and (width_xy < 0 or width_y < 0 or not (width_xy > 0 or width_y > 0)) or width_xy <= 0 then
 				error("one width must be >0", 2)
+			elseif mode and mode ~= "round" and mode ~= "bevel" and mode ~= "miter" then
+				error("valid mode expected", 2)
 			end
 			-- Line width values
 			local width, xscale, yscale
@@ -1694,25 +1697,67 @@ Yutils = {
 						o_vec1_x, o_vec1_y = Yutils.math.stretch(o_vec1_x, o_vec1_y, 0, width)
 						local o_vec2_x, o_vec2_y = Yutils.math.ortho(post_point[1]-point[1], post_point[2]-point[2], 0, 0, 0, 1)
 						o_vec2_x, o_vec2_y = Yutils.math.stretch(o_vec2_x, o_vec2_y, 0, width)
-						-- Calculate degree & circumference between orthogonal vectors
-						local degree = Yutils.math.degree(o_vec1_x, o_vec1_y, 0, o_vec2_x, o_vec2_y, 0)
-						local circ = math.abs(math.rad(degree)) * width
 						-- Add first edge point
 						outline_n = outline_n + 1
 						outline[outline_n] = string.format("%s%s %s",
-																	outline_n == 1 and "m " or outline_n == 2 and "l " or "",
+																	outline_n == 1 and "m " or "",
 																	Yutils.math.round(point[1] + o_vec1_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + o_vec1_y * yscale, FP_PRECISION))
-						-- Round edge needed?
-						if circ > MAX_CIRCUMFERENCE then
-							local circ_rest = circ % MAX_CIRCUMFERENCE
-							for cur_circ = circ_rest > 0 and circ_rest or MAX_CIRCUMFERENCE, circ, MAX_CIRCUMFERENCE do
-								local curve_vec_x, curve_vec_y = rotate2d(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
+						-- Create join by mode
+						if mode == "bevel" then
+							-- Nothing to add!
+						elseif mode == "miter" then
+							-- Add mid edge point(s)
+							local vec1_x, vec1_y, vec2_x, vec2_y = point[1]-pre_point[1], point[2]-pre_point[2], point[1]-post_point[1], point[2]-post_point[2]
+							local delta = vec1_x * vec2_y - vec2_x * vec1_y
+							if delta == 0 then	-- Parallel vectors
+								vec1_x, vec1_y = Yutils.math.stretch(vec1_x, vec1_y, 0, MITER_LIMIT)
+								vec2_x, vec2_y = Yutils.math.stretch(vec2_x, vec2_y, 0, MITER_LIMIT)
 								outline_n = outline_n + 1
-								outline[outline_n] = string.format("%s%s %s",
-																			outline_n == 1 and "m " or outline_n == 2 and "l " or "",
-																			Yutils.math.round(point[1] + curve_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + curve_vec_y * yscale, FP_PRECISION))
+								outline[outline_n] = string.format("%s%s %s %s %s",
+																			outline_n == 2 and "l " or "",
+																			Yutils.math.round(point[1] + (o_vec1_x + vec1_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec1_y + vec1_y) * yscale, FP_PRECISION),
+																			Yutils.math.round(point[1] + (o_vec2_x + vec2_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec2_y + vec2_y) * yscale, FP_PRECISION))
+							else	-- Vectors intersect
+								local pre, post = (point[1] + o_vec1_x) * (point[2] + o_vec1_y + vec1_y) - (point[1] + o_vec1_x + vec1_x) * (point[2] + o_vec1_y),
+													(point[1] + o_vec2_x) * (point[2] + o_vec2_y + vec2_y) - (point[1] + o_vec2_x + vec2_x) * (point[2] + o_vec2_y)
+								local is_vec_x, is_vec_y = (pre * -vec2_x - post * -vec1_x) / delta - point[1], (pre * -vec2_y - post * -vec1_y) / delta - point[2]
+								local is_vec_len = Yutils.math.distance(is_vec_x, is_vec_y)
+								if is_vec_len > MITER_LIMIT then
+									local fix_scale = MITER_LIMIT / is_vec_len
+									outline_n = outline_n + 1
+									outline[outline_n] = string.format("%s%s %s %s %s",
+																				outline_n == 2 and "l " or "",
+																				Yutils.math.round(point[1] + (o_vec1_x + (is_vec_x - o_vec1_x) * fix_scale) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec1_y + (is_vec_y - o_vec1_y) * fix_scale) * yscale, FP_PRECISION),
+																				Yutils.math.round(point[1] + (o_vec2_x + (is_vec_x - o_vec2_x) * fix_scale) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec2_y + (is_vec_y - o_vec2_y) * fix_scale) * yscale, FP_PRECISION))
+								else
+									outline_n = outline_n + 1
+									outline[outline_n] = string.format("%s%s %s",
+																				outline_n == 2 and "l " or "",
+																				Yutils.math.round(point[1] + is_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + is_vec_y * yscale, FP_PRECISION))
+								end
+							end
+						else	-- not mode or mode == "round"
+							-- Calculate degree & circumference between orthogonal vectors
+							local degree = Yutils.math.degree(o_vec1_x, o_vec1_y, 0, o_vec2_x, o_vec2_y, 0)
+							local circ = math.abs(math.rad(degree)) * width
+							-- Join needed?
+							if circ > MAX_CIRCUMFERENCE then
+								-- Add curve edge points
+								local circ_rest = circ % MAX_CIRCUMFERENCE
+								for cur_circ = circ_rest > 0 and circ_rest or MAX_CIRCUMFERENCE, circ - MAX_CIRCUMFERENCE, MAX_CIRCUMFERENCE do
+									local curve_vec_x, curve_vec_y = rotate2d(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
+									outline_n = outline_n + 1
+									outline[outline_n] = string.format("%s%s %s",
+																				outline_n == 2 and "l " or "",
+																				Yutils.math.round(point[1] + curve_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + curve_vec_y * yscale, FP_PRECISION))
+								end
 							end
 						end
+						-- Add end edge point
+						outline_n = outline_n + 1
+						outline[outline_n] = string.format("%s%s %s",
+																	outline_n == 2 and "l " or "",
+																	Yutils.math.round(point[1] + o_vec2_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + o_vec2_y * yscale, FP_PRECISION))
 					end
 					-- Insert inner or outer outline to stroke shape
 					stroke_shape_n = stroke_shape_n + 1

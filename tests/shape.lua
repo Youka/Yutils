@@ -9,7 +9,7 @@ print("Flattened shape: " .. Yutils.shape.flatten(shape))
 print("Moved shape: " .. Yutils.shape.move(shape, 5, -2))
 print("Mirrored shape: " .. Yutils.shape.transform(shape, Yutils.math.create_matrix().rotate("y", 180)))
 print("Shape with splitted lines: " .. Yutils.shape.split(shape, 15))
-print("Shape outline: " .. Yutils.shape.to_outline(Yutils.shape.flatten(shape), 5.5, 10))
+print("Shape outline: " .. Yutils.shape.to_outline(Yutils.shape.flatten(shape), 5.5, 10, "miter"))
 print("Pixels:\n" .. Yutils.table.tostring(Yutils.shape.to_pixels("m -4.5 -4 l 0 -4 0 0")))
 print(
 	"Detected shapes:\n" ..
