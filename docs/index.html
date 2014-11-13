@@ -145,6 +145,12 @@ length = math.distance(x, y[, z])<br>
 Calculates length of given vector.
 </div>
 <div class="function">
+x, y = math.line_intersect(x0, y0, x1, y1, x2, y2, x3, y3, strict)<br>
+Calculates intersection point of two lines.<br>
+<span class="function_parameters">x0, y0, x1, y1</span> are both points of line 1, <span class="function_parameters">x2, y2, x3, y3</span> are points of line 2. <span class="function_parameters">strict</span> is a flag, determining the intersection has to be located on the lines.<br>
+<span class="function_return">x, y</span> can be the intersection point. If both lines are parallel, <span class="function_return">x</span> is <b>nil</b>. If <span class="function_parameters">strict</span> is <b>true</b> and there's no intersection on the strict length lines, <span class="function_return">x</span> is <b>inf</b> (1/0).
+</div>
+<div class="function">
 rx, ry, rz = math.ortho(x1, y1, z1, x2, y2, z2)<br>
 Calculates the orthogonal vector to vectors <span class="function_parameters">x1|y1|z1</span> and <span class="function_parameters">x2|y2|z3</span>.
 </div>

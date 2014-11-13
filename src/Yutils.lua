@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 4th November 2014, 04:00 (GMT+1)
+	Version: 13th November 2014, 22:20 (GMT+1)
 	
 	Yutils
 		table
@@ -44,6 +44,7 @@
 				transform(x, y, z[, w]) -> number, number, number, number
 			degree(x1, y1, z1, x2, y2, z2) -> number
 			distance(x, y[, z]) -> number
+			line_intersect(x0, y0, x1, y1, x2, y2, x3, y3, strict) -> number, number|nil|inf
 			ortho(x1, y1, z1, x2, y2, z2) -> number, number, number
 			randomsteps(min, max, step) -> number
 			round(x[, dec]) -> number
@@ -959,6 +960,35 @@ Yutils = {
 			end
 			-- Calculate length
 			return z and math.sqrt(x*x + y*y + z*z) or math.sqrt(x*x + y*y)
+		end,
+		line_intersect = function(x0, y0, x1, y1, x2, y2, x3, y3, strict)
+			-- Check arguments
+			if type(x0) ~= "number" or type(y0) ~= "number" or type(x1) ~= "number" or type(y1) ~= "number" or
+				type(x2) ~= "number" or type(y2) ~= "number" or type(x3) ~= "number" or type(y3) ~= "number" or
+				strict ~= nil and type(strict) ~= "boolean" then
+				error("two lines and optional strictness flag expected", 2)
+			end
+			-- Get line vectors & check valid lengths
+			local x10, y10, x32, y32 = x0 - x1, y0 - y1, x2 - x3, y2 - y3
+			if x10 == 0 and y10 == 0 or x32 == 0 and y32 == 0 then
+				error("lines mustn't have zero length", 2)
+			end
+			-- Calculate determinant and check for parallel lines
+			local det = x10 * y32 - y10 * x32
+			if det ~= 0 then
+				-- Calculate line intersection (endless line lengths)
+				local pre, post = (x0 * y1 - y0 * x1), (x2 * y3 - y2 * x3)
+				local ix, iy = (pre * x32 - x10 * post) / det, (pre * y32 - y10 * post) / det
+				-- Check for line intersection with given line lengths
+				if strict then
+					local s, t = x10 ~= 0 and (ix - x1) / x10 or (iy - y1) / y10, x32 ~= 0 and (ix - x3) / x32 or (iy - y3) / y32
+					if s < 0 or s > 1 or t < 0 or t > 1 then
+						return 1/0	-- inf
+					end
+				end
+				-- Return intersection point
+				return ix, iy
+			end
 		end,
 		-- Get orthogonal vector of 2 given vectors
 		ortho = function(x1, y1, z1, x2, y2, z2)
