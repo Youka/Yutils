@@ -1738,19 +1738,12 @@ Yutils = {
 						elseif mode == "miter" then
 							-- Add mid edge point(s)
 							local vec1_x, vec1_y, vec2_x, vec2_y = point[1]-pre_point[1], point[2]-pre_point[2], point[1]-post_point[1], point[2]-post_point[2]
-							local delta = vec1_x * vec2_y - vec2_x * vec1_y
-							if delta == 0 then	-- Parallel vectors
-								vec1_x, vec1_y = Yutils.math.stretch(vec1_x, vec1_y, 0, MITER_LIMIT)
-								vec2_x, vec2_y = Yutils.math.stretch(vec2_x, vec2_y, 0, MITER_LIMIT)
-								outline_n = outline_n + 1
-								outline[outline_n] = string.format("%s%s %s %s %s",
-																			outline_n == 2 and "l " or "",
-																			Yutils.math.round(point[1] + (o_vec1_x + vec1_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec1_y + vec1_y) * yscale, FP_PRECISION),
-																			Yutils.math.round(point[1] + (o_vec2_x + vec2_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec2_y + vec2_y) * yscale, FP_PRECISION))
-							else	-- Vectors intersect
-								local pre, post = (point[1] + o_vec1_x) * (point[2] + o_vec1_y + vec1_y) - (point[1] + o_vec1_x + vec1_x) * (point[2] + o_vec1_y),
-													(point[1] + o_vec2_x) * (point[2] + o_vec2_y + vec2_y) - (point[1] + o_vec2_x + vec2_x) * (point[2] + o_vec2_y)
-								local is_vec_x, is_vec_y = (pre * -vec2_x - post * -vec1_x) / delta - point[1], (pre * -vec2_y - post * -vec1_y) / delta - point[2]
+							local is_x, is_y = Yutils.math.line_intersect(point[1] + o_vec1_x, point[2] + o_vec1_y,
+																				point[1] + o_vec1_x + vec1_x, point[2] + o_vec1_y + vec1_y,
+																				point[1] + o_vec2_x, point[2] + o_vec2_y,
+																				point[1] + o_vec2_x - vec2_x, point[2] + o_vec2_y - vec2_y)
+							if is_x then	-- Vectors intersect
+								local is_vec_x, is_vec_y = is_x - point[1], is_y - point[2]
 								local is_vec_len = Yutils.math.distance(is_vec_x, is_vec_y)
 								if is_vec_len > MITER_LIMIT then
 									local fix_scale = MITER_LIMIT / is_vec_len
@@ -1765,6 +1758,14 @@ Yutils = {
 																				outline_n == 2 and "l " or "",
 																				Yutils.math.round(point[1] + is_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + is_vec_y * yscale, FP_PRECISION))
 								end
+							else	-- Parallel vectors
+								vec1_x, vec1_y = Yutils.math.stretch(vec1_x, vec1_y, 0, MITER_LIMIT)
+								vec2_x, vec2_y = Yutils.math.stretch(vec2_x, vec2_y, 0, MITER_LIMIT)
+								outline_n = outline_n + 1
+								outline[outline_n] = string.format("%s%s %s %s %s",
+																			outline_n == 2 and "l " or "",
+																			Yutils.math.round(point[1] + (o_vec1_x + vec1_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec1_y + vec1_y) * yscale, FP_PRECISION),
+																			Yutils.math.round(point[1] + (o_vec2_x + vec2_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec2_y + vec2_y) * yscale, FP_PRECISION))
 							end
 						else	-- not mode or mode == "round"
 							-- Calculate degree & circumference between orthogonal vectors
