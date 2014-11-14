@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 13th November 2014, 22:20 (GMT+1)
+	Version: 14th November 2014, 15:45 (GMT+1)
 	
 	Yutils
 		table
@@ -1723,72 +1723,86 @@ Yutils = {
 							end
 						end
 						-- Calculate orthogonal vectors to both neighbour points
-						local o_vec1_x, o_vec1_y = Yutils.math.ortho(point[1]-pre_point[1], point[2]-pre_point[2], 0, 0, 0, 1)
+						local vec1_x, vec1_y, vec2_x, vec2_y = point[1]-pre_point[1], point[2]-pre_point[2], point[1]-post_point[1], point[2]-post_point[2]
+						local o_vec1_x, o_vec1_y = Yutils.math.ortho(vec1_x, vec1_y, 0, 0, 0, 1)
 						o_vec1_x, o_vec1_y = Yutils.math.stretch(o_vec1_x, o_vec1_y, 0, width)
-						local o_vec2_x, o_vec2_y = Yutils.math.ortho(post_point[1]-point[1], post_point[2]-point[2], 0, 0, 0, 1)
+						local o_vec2_x, o_vec2_y = Yutils.math.ortho(vec2_x, vec2_y, 0, 0, 0, -1)
 						o_vec2_x, o_vec2_y = Yutils.math.stretch(o_vec2_x, o_vec2_y, 0, width)
-						-- Add first edge point
-						outline_n = outline_n + 1
-						outline[outline_n] = string.format("%s%s %s",
-																	outline_n == 1 and "m " or "",
-																	Yutils.math.round(point[1] + o_vec1_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + o_vec1_y * yscale, FP_PRECISION))
-						-- Create join by mode
-						if mode == "bevel" then
-							-- Nothing to add!
-						elseif mode == "miter" then
-							-- Add mid edge point(s)
-							local vec1_x, vec1_y, vec2_x, vec2_y = point[1]-pre_point[1], point[2]-pre_point[2], point[1]-post_point[1], point[2]-post_point[2]
-							local is_x, is_y = Yutils.math.line_intersect(point[1] + o_vec1_x, point[2] + o_vec1_y,
-																				point[1] + o_vec1_x + vec1_x, point[2] + o_vec1_y + vec1_y,
-																				point[1] + o_vec2_x, point[2] + o_vec2_y,
-																				point[1] + o_vec2_x - vec2_x, point[2] + o_vec2_y - vec2_y)
-							if is_x then	-- Vectors intersect
-								local is_vec_x, is_vec_y = is_x - point[1], is_y - point[2]
-								local is_vec_len = Yutils.math.distance(is_vec_x, is_vec_y)
-								if is_vec_len > MITER_LIMIT then
-									local fix_scale = MITER_LIMIT / is_vec_len
+						-- Check for gap or edge join
+						local is_x, is_y = Yutils.math.line_intersect(point[1] + o_vec1_x - vec1_x, point[2] + o_vec1_y - vec1_y,
+																					point[1] + o_vec1_x, point[2] + o_vec1_y,
+																					point[1] + o_vec2_x - vec2_x, point[2] + o_vec2_y - vec2_y,
+																					point[1] + o_vec2_x, point[2] + o_vec2_y,
+																					true)
+						if is_y then
+							-- Add gap point
+							outline_n = outline_n + 1
+							outline[outline_n] = string.format("%s%s %s",
+																		outline_n == 1 and "m " or outline_n == 2 and "l " or "",
+																		Yutils.math.round(point[1] + (is_x - point[1]) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (is_y - point[2]) * yscale, FP_PRECISION))
+						else
+							-- Add first edge point
+							outline_n = outline_n + 1
+							outline[outline_n] = string.format("%s%s %s",
+																		outline_n == 1 and "m " or outline_n == 2 and "l " or "",
+																		Yutils.math.round(point[1] + o_vec1_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + o_vec1_y * yscale, FP_PRECISION))
+							-- Create join by mode
+							if mode == "bevel" then
+								-- Nothing to add!
+							elseif mode == "miter" then
+								-- Add mid edge point(s)
+								is_x, is_y = Yutils.math.line_intersect(point[1] + o_vec1_x - vec1_x, point[2] + o_vec1_y - vec1_y,
+																					point[1] + o_vec1_x, point[2] + o_vec1_y,
+																					point[1] + o_vec2_x - vec2_x, point[2] + o_vec2_y - vec2_y,
+																					point[1] + o_vec2_x, point[2] + o_vec2_y)
+								if is_y then	-- Vectors intersect
+									local is_vec_x, is_vec_y = is_x - point[1], is_y - point[2]
+									local is_vec_len = Yutils.math.distance(is_vec_x, is_vec_y)
+									if is_vec_len > MITER_LIMIT then
+										local fix_scale = MITER_LIMIT / is_vec_len
+										outline_n = outline_n + 1
+										outline[outline_n] = string.format("%s%s %s %s %s",
+																					outline_n == 2 and "l " or "",
+																					Yutils.math.round(point[1] + (o_vec1_x + (is_vec_x - o_vec1_x) * fix_scale) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec1_y + (is_vec_y - o_vec1_y) * fix_scale) * yscale, FP_PRECISION),
+																					Yutils.math.round(point[1] + (o_vec2_x + (is_vec_x - o_vec2_x) * fix_scale) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec2_y + (is_vec_y - o_vec2_y) * fix_scale) * yscale, FP_PRECISION))
+									else
+										outline_n = outline_n + 1
+										outline[outline_n] = string.format("%s%s %s",
+																					outline_n == 2 and "l " or "",
+																					Yutils.math.round(point[1] + is_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + is_vec_y * yscale, FP_PRECISION))
+									end
+								else	-- Parallel vectors
+									vec1_x, vec1_y = Yutils.math.stretch(vec1_x, vec1_y, 0, MITER_LIMIT)
+									vec2_x, vec2_y = Yutils.math.stretch(vec2_x, vec2_y, 0, MITER_LIMIT)
 									outline_n = outline_n + 1
 									outline[outline_n] = string.format("%s%s %s %s %s",
 																				outline_n == 2 and "l " or "",
-																				Yutils.math.round(point[1] + (o_vec1_x + (is_vec_x - o_vec1_x) * fix_scale) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec1_y + (is_vec_y - o_vec1_y) * fix_scale) * yscale, FP_PRECISION),
-																				Yutils.math.round(point[1] + (o_vec2_x + (is_vec_x - o_vec2_x) * fix_scale) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec2_y + (is_vec_y - o_vec2_y) * fix_scale) * yscale, FP_PRECISION))
-								else
-									outline_n = outline_n + 1
-									outline[outline_n] = string.format("%s%s %s",
-																				outline_n == 2 and "l " or "",
-																				Yutils.math.round(point[1] + is_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + is_vec_y * yscale, FP_PRECISION))
+																				Yutils.math.round(point[1] + (o_vec1_x + vec1_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec1_y + vec1_y) * yscale, FP_PRECISION),
+																				Yutils.math.round(point[1] + (o_vec2_x + vec2_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec2_y + vec2_y) * yscale, FP_PRECISION))
 								end
-							else	-- Parallel vectors
-								vec1_x, vec1_y = Yutils.math.stretch(vec1_x, vec1_y, 0, MITER_LIMIT)
-								vec2_x, vec2_y = Yutils.math.stretch(vec2_x, vec2_y, 0, MITER_LIMIT)
-								outline_n = outline_n + 1
-								outline[outline_n] = string.format("%s%s %s %s %s",
-																			outline_n == 2 and "l " or "",
-																			Yutils.math.round(point[1] + (o_vec1_x + vec1_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec1_y + vec1_y) * yscale, FP_PRECISION),
-																			Yutils.math.round(point[1] + (o_vec2_x + vec2_x) * xscale, FP_PRECISION), Yutils.math.round(point[2] + (o_vec2_y + vec2_y) * yscale, FP_PRECISION))
-							end
-						else	-- not mode or mode == "round"
-							-- Calculate degree & circumference between orthogonal vectors
-							local degree = Yutils.math.degree(o_vec1_x, o_vec1_y, 0, o_vec2_x, o_vec2_y, 0)
-							local circ = math.abs(math.rad(degree)) * width
-							-- Join needed?
-							if circ > MAX_CIRCUMFERENCE then
-								-- Add curve edge points
-								local circ_rest = circ % MAX_CIRCUMFERENCE
-								for cur_circ = circ_rest > 0 and circ_rest or MAX_CIRCUMFERENCE, circ - MAX_CIRCUMFERENCE, MAX_CIRCUMFERENCE do
-									local curve_vec_x, curve_vec_y = rotate2d(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
-									outline_n = outline_n + 1
-									outline[outline_n] = string.format("%s%s %s",
-																				outline_n == 2 and "l " or "",
-																				Yutils.math.round(point[1] + curve_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + curve_vec_y * yscale, FP_PRECISION))
+							else	-- not mode or mode == "round"
+								-- Calculate degree & circumference between orthogonal vectors
+								local degree = Yutils.math.degree(o_vec1_x, o_vec1_y, 0, o_vec2_x, o_vec2_y, 0)
+								local circ = math.abs(math.rad(degree)) * width
+								-- Join needed?
+								if circ > MAX_CIRCUMFERENCE then
+									-- Add curve edge points
+									local circ_rest = circ % MAX_CIRCUMFERENCE
+									for cur_circ = circ_rest > 0 and circ_rest or MAX_CIRCUMFERENCE, circ - MAX_CIRCUMFERENCE, MAX_CIRCUMFERENCE do
+										local curve_vec_x, curve_vec_y = rotate2d(o_vec1_x, o_vec1_y, cur_circ / circ * degree)
+										outline_n = outline_n + 1
+										outline[outline_n] = string.format("%s%s %s",
+																					outline_n == 2 and "l " or "",
+																					Yutils.math.round(point[1] + curve_vec_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + curve_vec_y * yscale, FP_PRECISION))
+									end
 								end
 							end
+							-- Add end edge point
+							outline_n = outline_n + 1
+							outline[outline_n] = string.format("%s%s %s",
+																		outline_n == 2 and "l " or "",
+																		Yutils.math.round(point[1] + o_vec2_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + o_vec2_y * yscale, FP_PRECISION))
 						end
-						-- Add end edge point
-						outline_n = outline_n + 1
-						outline[outline_n] = string.format("%s%s %s",
-																	outline_n == 2 and "l " or "",
-																	Yutils.math.round(point[1] + o_vec2_x * xscale, FP_PRECISION), Yutils.math.round(point[2] + o_vec2_y * yscale, FP_PRECISION))
 					end
 					-- Insert inner or outer outline to stroke shape
 					stroke_shape_n = stroke_shape_n + 1
