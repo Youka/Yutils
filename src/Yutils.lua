@@ -19,7 +19,7 @@
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
 	-----------------------------------------------------------------------------------------------------------------
-	Version: 14th November 2014, 15:45 (GMT+1)
+	Version: 17th January 2015, 15:45 (GMT+1)
 	
 	Yutils
 		table
@@ -3524,6 +3524,11 @@ Yutils = {
 		end
 	}
 }
+
+-- Put library in global scope (if first script argument is true)
+if ({...})[1] then
+	_G.Yutils = Yutils
+end
 
 -- Return library to script loader
 return Yutils

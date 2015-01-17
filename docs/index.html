@@ -48,7 +48,10 @@ Yutils consists of functions only, packed in sublibrary tables, those packed in 
 local Ymath = Yutils.math
 
 print(Ymath.distance(1,1))
--- 1.4142135623731</div>
+-- 1.4142135623731</div><br>
+It's also possible to load+execute the library script with the first argument as <b>true</b> to register Yutils to the global scope.<br>
+<div class="code">loadfile("Yutils.lua")(true)
+local Ymath = Yutils.math</div>
 </div>
 <div class="section" id="Functions">
 <div class="function">

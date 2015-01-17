@@ -168,11 +168,11 @@ window.addEventListener("load", function(evt){
 			// Add right space for vertical scrollbar (on appearance)
 			fixScrollBar(code, "vertical");
 			// Set code highlight
-			code.addEventListener("mouseover", function(){
-				numberBar.style.display = "table-cell";
+			code.addEventListener("mouseover", function(evt){
+				evt.currentTarget.childNodes[1].style.display = "table-cell";
 			})
-			code.addEventListener("mouseout", function(){
-				numberBar.style.display = "none";
+			code.addEventListener("mouseout", function(evt){
+				evt.currentTarget.childNodes[1].style.display = "none";
 			})
 		}
 	}
