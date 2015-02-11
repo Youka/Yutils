@@ -19,7 +19,7 @@ lib_math.arccurve = function(x, y, cx, cy, angle)
 		-- Relative start point to center
 		local rx0, ry0 = x - cx, y - cy
 		-- Create curves in 90 degree chunks
-		local curves, curves_n, angle_sum, rotate, stretch, distance = {}, 0, 0, lib_math.rotate, lib_math.stretch, lib_math.distance
+		local curves, curves_n, angle_sum, rotate, stretch = {}, 0, 0, lib_math.rotate, lib_math.stretch
 		repeat
 			-- Get arc end point
 			local cur_angle_pct = min(angle - angle_sum, 90) / 90
@@ -27,7 +27,7 @@ lib_math.arccurve = function(x, y, cx, cy, angle)
 			-- Get arc start to end vector
 			local rx03, ry03 = rx3 - rx0, ry3 - ry0
 			-- Scale arc vector to curve node <-> control point distance
-			rx03, ry03 = stretch(rx03, ry03, 0, sqrt(distance(rx03, ry03)^2/2) * kappa)
+			rx03, ry03 = stretch(rx03, ry03, 0, sqrt((rx03*rx03 + ry03*ry03)/2) * kappa)
 			-- Get curve control points
 			local rx1, ry1 = rotate(rx03, ry03, cw * -45 * cur_angle_pct)
 			rx1, ry1 = rx0 + rx1, ry0 + ry1
